@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pinterest Download</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="titlebar" aria-hidden="true"></div>
+    <main class="page">
+      <header class="hero">
+        <p class="eyebrow">Pinterest Download</p>
+        <h1>Tempel URL, unduh semua image</h1>
+        <p class="lede">
+          Pin, board, atau profil. Pilih folder tujuan dan batas jumlah foto, lalu tempel URL-nya.
+        </p>
+      </header>
+
+      <form id="download-form" class="panel" novalidate>
+        <label for="dest">Folder unduhan</label>
+        <div class="folder-row">
+          <input id="dest" name="dest" type="text" spellcheck="false" />
+          <button id="pick-folder" type="button" class="ghost">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            </svg>
+            <span>Pilih folder</span>
+          </button>
+        </div>
+
+        <fieldset class="limits">
+          <legend>Jumlah foto maksimum</legend>
+          <div class="limit-options" role="radiogroup" aria-label="Jumlah foto maksimum">
+            <label><input type="radio" name="limit" value="25" /> 25</label>
+            <label><input type="radio" name="limit" value="50" checked /> 50</label>
+            <label><input type="radio" name="limit" value="100" /> 100</label>
+            <label><input type="radio" name="limit" value="200" /> 200</label>
+          </div>
+        </fieldset>
+
+        <label for="url">URL Pinterest</label>
+        <div class="field">
+          <span class="field-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M10 13a5 5 0 0 0 7.54.54l1.07-1.07a5 5 0 0 0-7.07-7.07L10.4 6.54" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54L5.4 11.54a5 5 0 0 0 7.07 7.07l1.13-1.13" />
+            </svg>
+          </span>
+          <input
+            id="url"
+            name="url"
+            type="url"
+            inputmode="url"
+            autocomplete="url"
+            placeholder="https://www.pinterest.com/username/nama-board/"
+            required
+          />
+        </div>
+        <p class="hint">Contoh: halaman pin, board, atau profil publik.</p>
+        <p id="form-error" class="error" hidden></p>
+
+        <div class="actions">
+          <button id="submit" type="submit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 3v12" />
+              <path d="m7 11 5 5 5-5" />
+              <path d="M5 21h14" />
+            </svg>
+            <span>Unduh semua image</span>
+          </button>
+          <button id="open-folder" type="button" class="ghost">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            </svg>
+            <span>Buka folder</span>
+          </button>
+        </div>
+      </form>
+
+      <section class="panel result" aria-live="polite">
+        <div class="result-head">
+          <h2>Hasil</h2>
+          <p id="status">Belum ada unduhan.</p>
+        </div>
+        <div id="progress" class="progress" hidden>
+          <div id="progress-bar"></div>
+        </div>
+        <ul id="file-list" class="files"></ul>
+      </section>
+    </main>
+    <script src="/static/app.js" type="module"></script>
+  </body>
+</html>

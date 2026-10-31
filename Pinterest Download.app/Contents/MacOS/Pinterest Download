@@ -1,0 +1,18 @@
+#!/bin/zsh
+set -euo pipefail
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.nvm/versions/node/v18.20.8/bin:$PATH"
+
+APP_BUNDLE="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$APP_BUNDLE/.." && pwd)"
+cd "$ROOT"
+
+if [ ! -x .venv/bin/python ]; then
+  python3 -m venv .venv
+  .venv/bin/pip install -r requirements.txt
+fi
+if [ ! -x node_modules/.bin/electron ]; then
+  npm install --no-fund --no-audit electron@38.4.0
+fi
+
+exec "$ROOT/node_modules/.bin/electron" "$ROOT"

@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+release/*
+!release/*.dmg
+settings.json
+.electron-backend.log
+downloads/*
+!downloads/.gitkeep

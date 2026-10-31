@@ -1,0 +1,55 @@
+{
+  "name": "pinterest-download",
+  "productName": "Pinterest Download",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Desktop app to download images from a Pinterest URL",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "web": "python3 run.py",
+    "dist": "electron-builder --mac --arm64 --x64"
+  },
+  "devDependencies": {
+    "electron": "^38.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "local.gemadipada.pinterest-download",
+    "productName": "Pinterest Download",
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".",
+        "to": "backend",
+        "filter": [
+          "app.py",
+          "run.py",
+          "downloader.py",
+          "settings.py",
+          "requirements.txt",
+          "static/**"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "directories": {
+      "output": "release"
+    }
+  }
+}
