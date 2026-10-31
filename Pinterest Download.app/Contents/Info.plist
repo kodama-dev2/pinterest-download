@@ -8,6 +8,10 @@
   <string>Pinterest Download</string>
   <key>CFBundleExecutable</key>
   <string>Pinterest Download</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleIconName</key>
+  <string>AppIcon</string>
   <key>CFBundleIdentifier</key>
   <string>local.gemadipada.pinterest-download</string>
   <key>CFBundleInfoDictionaryVersion</key>

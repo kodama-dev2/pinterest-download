@@ -24,6 +24,7 @@ app.on("second-instance", () => {
 
 const PORT = Number(process.env.PINTEREST_DL_PORT || 8765);
 const HOST = "127.0.0.1";
+const APP_ICON = path.join(__dirname, "..", "build", "icon.png");
 
 function backendDir() {
   if (app.isPackaged) {
@@ -168,6 +169,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: "#0f172a",
     title: "Pinterest Download",
+    icon: APP_ICON,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 18 },
     autoHideMenuBar: true,
@@ -204,6 +206,7 @@ function statusWindow(message) {
     height: 220,
     backgroundColor: "#0f172a",
     title: "Pinterest Download",
+    icon: APP_ICON,
     autoHideMenuBar: true,
   });
   const safe = String(message).replace(/</g, "");
@@ -243,6 +246,7 @@ app.whenReady().then(async () => {
       width: 560,
       height: 280,
       backgroundColor: "#0f172a",
+      icon: APP_ICON,
     });
     const message = String(error.message || error).replace(/</g, "");
     win.loadURL(

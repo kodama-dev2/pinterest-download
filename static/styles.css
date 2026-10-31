@@ -67,6 +67,16 @@ body.desktop .page {
   margin-bottom: 32px;
 }
 
+.brand-logo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 0 0 16px;
+  border-radius: 18px;
+  object-fit: cover;
+  box-shadow: 0 10px 30px rgba(227, 28, 36, 0.28);
+}
+
 .eyebrow {
   margin: 0 0 12px;
   color: var(--color-accent);
