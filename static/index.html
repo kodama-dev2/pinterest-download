@@ -3,23 +3,26 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pinterest Download</title>
+    <title>Pinterest Download by GEMADIPADA</title>
     <link rel="icon" type="image/png" href="/static/logo.png" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=range1" />
   </head>
   <body>
+    <div class="glow glow-a" aria-hidden="true"></div>
+    <div class="glow glow-b" aria-hidden="true"></div>
+    <div class="glow glow-c" aria-hidden="true"></div>
     <div class="titlebar" aria-hidden="true"></div>
     <main class="page">
       <header class="hero">
-        <img class="brand-logo" src="/static/logo.png" alt="Pinterest Download" />
-        <p class="eyebrow">Pinterest Download</p>
-        <h1>Tempel URL, unduh semua image</h1>
+        <img class="brand-logo" src="/static/logo.png" alt="Pinterest Download by GEMADIPADA" />
+        <p class="eyebrow">Pinterest Download by GEMADIPADA</p>
+        <h1>Tempel URL, unduh semua image dan video</h1>
         <p class="lede">
-          Pin, board, atau profil. Pilih folder tujuan dan batas jumlah foto, lalu tempel URL-nya.
+          Pin, board, atau profil. Profil: folder per board, rentang berlaku di tiap folder. Tulis manual jika lebih dari 1000.
         </p>
       </header>
 
@@ -36,14 +39,34 @@
         </div>
 
         <fieldset class="limits">
-          <legend>Jumlah foto maksimum</legend>
-          <div class="limit-options" role="radiogroup" aria-label="Jumlah foto maksimum">
-            <label><input type="radio" name="limit" value="25" /> 25</label>
-            <label><input type="radio" name="limit" value="50" checked /> 50</label>
-            <label><input type="radio" name="limit" value="100" /> 100</label>
-            <label><input type="radio" name="limit" value="200" /> 200</label>
+          <legend>Rentang pin</legend>
+          <div class="limit-options" role="radiogroup" aria-label="Rentang pin">
+            <label><input type="radio" name="start" value="1" checked /> 1–100</label>
+            <label><input type="radio" name="start" value="101" /> 101–200</label>
+            <label><input type="radio" name="start" value="201" /> 201–300</label>
+            <label><input type="radio" name="start" value="301" /> 301–400</label>
+            <label><input type="radio" name="start" value="401" /> 401–500</label>
+            <label><input type="radio" name="start" value="custom" /> Manual</label>
+          </div>
+          <div class="range-manual" id="range-manual" hidden>
+            <label for="range-from">Dari</label>
+            <input id="range-from" name="range-from" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="1001" />
+            <span class="range-sep" aria-hidden="true">–</span>
+            <label for="range-to">Sampai</label>
+            <input id="range-to" name="range-to" type="number" min="1" max="102000" step="1" inputmode="numeric" placeholder="2000" />
           </div>
         </fieldset>
+
+        <div class="job-bar">
+          <div id="tab-list" class="tab-list" role="tablist" aria-label="Job unduhan"></div>
+          <button id="add-tab" type="button" class="ghost tab-add">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+            <span>Tambah</span>
+          </button>
+        </div>
 
         <label for="url">URL Pinterest</label>
         <div class="field">
@@ -63,7 +86,7 @@
             required
           />
         </div>
-        <p class="hint">Contoh: halaman pin, board, atau profil publik.</p>
+        <p class="hint">Manual: tulis 201–1000, lalu 1001–2000, dan seterusnya. Satu kotak maksimal 2000 pin. Profil: rentang berlaku per folder.</p>
         <p id="form-error" class="error" hidden></p>
 
         <div class="actions">
@@ -73,7 +96,7 @@
               <path d="m7 11 5 5 5-5" />
               <path d="M5 21h14" />
             </svg>
-            <span>Unduh semua image</span>
+            <span>Unduh semua</span>
           </button>
           <button id="open-folder" type="button" class="ghost">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -95,6 +118,6 @@
         <ul id="file-list" class="files"></ul>
       </section>
     </main>
-    <script src="/static/app.js" type="module"></script>
+    <script src="/static/app.js?v=range1" type="module"></script>
   </body>
 </html>

@@ -1,18 +1,68 @@
 #!/bin/zsh
 set -euo pipefail
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.nvm/versions/node/v18.20.8/bin:$PATH"
-
 APP_BUNDLE="$(cd "$(dirname "$0")/../.." && pwd)"
 ROOT="$(cd "$APP_BUNDLE/.." && pwd)"
 cd "$ROOT"
 
-if [ ! -x .venv/bin/python ]; then
-  python3 -m venv .venv
-  .venv/bin/pip install -r requirements.txt
+notify() {
+  osascript -e "display notification \"$1\" with title \"Pinterest Download\"" >/dev/null 2>&1 || true
+}
+
+fail() {
+  osascript -e "display dialog \"$1\" with title \"Pinterest Download\" buttons {\"OK\"} default button \"OK\"" >/dev/null 2>&1 || true
+  exit 1
+}
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/lib/nodejs/current/bin:$HOME/.local/bin:$PATH"
+
+if [ -d "$HOME/.nvm/versions/node" ]; then
+  for node_bin in "$HOME/.nvm/versions/node"/*/bin; do
+    if [ -d "$node_bin" ]; then
+      export PATH="$node_bin:$PATH"
+    fi
+  done
 fi
-if [ ! -x node_modules/.bin/electron ]; then
-  npm install --no-fund --no-audit electron@38.4.0
+
+if [ -d "$HOME/.local/share/fnm/aliases/default/bin" ]; then
+  export PATH="$HOME/.local/share/fnm/aliases/default/bin:$PATH"
+fi
+
+RUNTIME="$ROOT/.runtime"
+if [ -x "$RUNTIME/node/bin/npm" ]; then
+  export PATH="$RUNTIME/node/bin:$PATH"
+fi
+
+ensure_node() {
+  if command -v npm >/dev/null 2>&1; then
+    return 0
+  fi
+  notify "Menyiapkan app..."
+  mkdir -p "$RUNTIME"
+  local arch
+  case "$(uname -m)" in
+    arm64) arch=arm64 ;;
+    *) arch=x64 ;;
+  esac
+  local ver="v22.21.0"
+  local name="node-${ver}-darwin-${arch}"
+  local url="https://nodejs.org/dist/${ver}/${name}.tar.gz"
+  local tarball="$RUNTIME/${name}.tar.gz"
+  curl -fsSL --retry 3 -o "$tarball" "$url" || fail "Perlu internet sekali untuk menyiapkan app. Sambungkan Wi-Fi, lalu buka app lagi."
+  rm -rf "$RUNTIME/node-extract" "$RUNTIME/node"
+  mkdir -p "$RUNTIME/node-extract"
+  tar -xzf "$tarball" -C "$RUNTIME/node-extract"
+  mv "$RUNTIME/node-extract/$name" "$RUNTIME/node"
+  rm -rf "$RUNTIME/node-extract" "$tarball"
+  xattr -dr com.apple.quarantine "$RUNTIME/node" >/dev/null 2>&1 || true
+  export PATH="$RUNTIME/node/bin:$PATH"
+  command -v npm >/dev/null 2>&1 || fail "Gagal menyiapkan app. Buka app lagi."
+}
+
+if [ ! -x "$ROOT/node_modules/.bin/electron" ]; then
+  notify "Mengunduh kelengkapan app..."
+  ensure_node
+  npm install --no-fund --no-audit --prefix "$ROOT" electron@38.4.0 || fail "Perlu internet sekali untuk menyiapkan app. Sambungkan Wi-Fi, lalu buka app lagi."
 fi
 
 exec "$ROOT/node_modules/.bin/electron" "$ROOT"

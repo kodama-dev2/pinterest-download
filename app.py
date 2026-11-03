@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from queue import Queue
@@ -18,18 +20,22 @@ from settings import load_settings, normalize_dest, save_settings
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 
-app = FastAPI(title="Pinterest Download")
+app = FastAPI(title="Pinterest Download by GEMADIPADA")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
 class DownloadRequest(BaseModel):
     url: str = Field(min_length=8, max_length=2000)
     dest: str | None = None
+    start: int | None = None
+    end: int | None = None
     limit: int | None = None
 
 
 class SettingsRequest(BaseModel):
     dest: str | None = None
+    start: int | None = None
+    end: int | None = None
     limit: int | None = None
 
 
@@ -51,7 +57,7 @@ def get_settings():
 @app.post("/api/settings")
 def update_settings(body: SettingsRequest):
     try:
-        return save_settings(body.dest, body.limit)
+        return save_settings(body.dest, start=body.start, end=body.end, limit=body.limit)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -83,7 +89,12 @@ def open_folder(body: OpenFolderRequest):
     if root.resolve() not in target.parents and target != root.resolve():
         raise HTTPException(400, "Folder tidak valid")
     target.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["open", str(target)], check=False)
+    if sys.platform == "win32":
+        os.startfile(target)
+    elif sys.platform == "darwin":
+        subprocess.run(["open", str(target)], check=False)
+    else:
+        subprocess.run(["xdg-open", str(target)], check=False)
     return {"ok": True, "path": str(target)}
 
 
@@ -100,7 +111,14 @@ def start_download(body: DownloadRequest):
 
     def worker() -> None:
         try:
-            download_pinterest(url, emit, dest=body.dest, limit=body.limit)
+            download_pinterest(
+                url,
+                emit,
+                dest=body.dest,
+                start=body.start,
+                end=body.end,
+                limit=body.limit,
+            )
         except Exception as exc:
             events.put({"type": "error", "message": str(exc)})
             events.put({"type": "done", "ok": False, "count": 0, "failed": 0, "folder": ""})

@@ -1,6 +1,6 @@
 {
   "name": "pinterest-download",
-  "productName": "Pinterest Download",
+  "productName": "Pinterest Download by GEMADIPADA",
   "version": "1.0.0",
   "private": true,
   "description": "Desktop app to download images from a Pinterest URL",
@@ -8,7 +8,8 @@
   "scripts": {
     "start": "electron .",
     "web": "python3 run.py",
-    "dist": "electron-builder --mac --arm64 --x64"
+    "dist": "electron-builder --mac --arm64 --x64",
+    "dist:win": "electron-builder --win nsis --x64"
   },
   "devDependencies": {
     "electron": "^38.4.0",
@@ -16,7 +17,7 @@
   },
   "build": {
     "appId": "local.gemadipada.pinterest-download",
-    "productName": "Pinterest Download",
+    "productName": "Pinterest Download by GEMADIPADA",
     "files": [
       "electron/**/*",
       "package.json"
@@ -35,7 +36,7 @@
         ]
       }
     ],
-    "icon": "build/icon.icns",
+    "icon": "build/icon.png",
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.utilities",
@@ -49,6 +50,22 @@
           ]
         }
       ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Pinterest Download by GEMADIPADA"
     },
     "directories": {
       "output": "release"

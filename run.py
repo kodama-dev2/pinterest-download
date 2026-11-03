@@ -12,7 +12,9 @@ def main() -> None:
     parser.add_argument("url", nargs="?", help="URL pin, board, atau profil Pinterest")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--dest", help="Folder tujuan unduhan")
-    parser.add_argument("--limit", type=int, choices=(25, 50, 100, 200), help="Maksimal jumlah foto")
+    parser.add_argument("--start", type=int, help="Awal rentang, misalnya 1, 201, atau 1001")
+    parser.add_argument("--end", type=int, help="Akhir rentang, misalnya 100, 1000, atau 2000")
+    parser.add_argument("--limit", type=int, help="Jumlah pin jika --end tidak diisi")
     args = parser.parse_args()
 
     if args.url:
@@ -27,7 +29,14 @@ def main() -> None:
             elif kind == "done":
                 print(f"selesai    {event['count']} image")
 
-        download_pinterest(args.url, emit, dest=args.dest, limit=args.limit)
+        download_pinterest(
+            args.url,
+            emit,
+            dest=args.dest,
+            start=args.start,
+            end=args.end,
+            limit=args.limit,
+        )
         return
 
     uvicorn.run("app:app", host="127.0.0.1", port=args.port, reload=False)
