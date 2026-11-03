@@ -446,29 +446,30 @@ function showUpdate(message, ready = false) {
 
 checkUpdate?.addEventListener("click", async () => {
   const label = checkUpdate.querySelector("span");
-  const previous = label?.textContent || "Cek pembaruan";
+  const previous = label?.textContent || "Update software";
   checkUpdate.disabled = true;
   if (label) label.textContent = "Mengecek...";
   try {
     const check = await fetch("/api/update");
     const info = await check.json().catch(() => ({}));
     if (!check.ok) {
-      throw new Error(info.detail || "Gagal cek pembaruan.");
+      throw new Error(typeof info.detail === "string" ? info.detail : "Gagal cek pembaruan.");
     }
+    if (appVersion && info.current) appVersion.textContent = info.current;
     if (!info.available) {
-      showUpdate(`Sudah versi terbaru (${info.current}).`, true);
+      showUpdate(`Sudah versi terbaru (v${info.current}).`, true);
       return;
     }
     if (label) label.textContent = "Mengunduh...";
-    showUpdate(`Ada versi ${info.latest}. Mengunduh installer...`);
+    showUpdate(`Ada v${info.latest}. Mengunduh ${info.asset || "installer"} dari GitHub...`);
     const response = await fetch("/api/update/download", { method: "POST" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(body.detail || "Gagal unduh pembaruan.");
+      throw new Error(typeof body.detail === "string" ? body.detail : "Gagal unduh pembaruan.");
     }
-    showUpdate(`Versi ${body.latest} sudah diunduh. Pasang dari file yang terbuka.`, true);
+    showUpdate(`v${body.latest} sudah diunduh dari release. Pasang dari file yang terbuka.`, true);
   } catch (error) {
-    showUpdate(error.message || "Gagal cek pembaruan.");
+    showUpdate(error.message || "Gagal update software.");
   } finally {
     checkUpdate.disabled = false;
     if (label) label.textContent = previous;

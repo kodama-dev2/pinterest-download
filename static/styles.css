@@ -121,13 +121,27 @@ body.desktop .page {
 }
 
 .eyebrow {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   color: #ff8a94;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-shadow: 0 0 18px rgba(255, 60, 80, 0.55);
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 14px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 110, 120, 0.35);
+  border-radius: 999px;
+  background: rgba(230, 0, 35, 0.12);
+  color: #ffd6da;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 h1 {

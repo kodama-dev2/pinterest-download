@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css?v=update1" />
+    <link rel="stylesheet" href="/static/styles.css?v=update2" />
   </head>
   <body>
     <div class="glow glow-a" aria-hidden="true"></div>
@@ -20,18 +20,19 @@
       <header class="hero">
         <img class="brand-logo" src="/static/logo.png" alt="Pinterest Download by GEMADIPADA" />
         <p class="eyebrow">Pinterest Download by GEMADIPADA</p>
+        <p class="version-badge">v<span id="app-version">1.0.3</span></p>
         <h1>Tempel URL, unduh semua image dan video</h1>
         <p class="lede">
           Pin, board, atau profil. Profil: folder per board, rentang berlaku di tiap folder. Tulis manual jika lebih dari 1000.
         </p>
         <div class="update-row">
-          <p class="version">Versi <span id="app-version">…</span></p>
           <button id="check-update" type="button" class="ghost">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M21 12a9 9 0 1 1-2.6-6.4" />
-              <path d="M21 3v6h-6" />
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <path d="M7 10 12 15 17 10" />
+              <path d="M12 15V3" />
             </svg>
-            <span>Cek pembaruan</span>
+            <span>Update software</span>
           </button>
         </div>
         <p id="update-status" class="hint" hidden></p>
@@ -129,6 +130,6 @@
         <ul id="file-list" class="files"></ul>
       </section>
     </main>
-    <script src="/static/app.js?v=update1" type="module"></script>
+    <script src="/static/app.js?v=update2" type="module"></script>
   </body>
 </html>

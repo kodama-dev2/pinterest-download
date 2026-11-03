@@ -25,9 +25,14 @@ def _runtime() -> tuple[str, str]:
     return os_name, arch
 
 
-def _asset_name(os_name: str, arch: str) -> str:
+def _pick_asset(assets: list, os_name: str, arch: str) -> dict | None:
     ext = "zip" if os_name == "win" else "dmg"
-    return f"-{os_name}-{arch}.{ext}"
+    tokens = (os_name, arch, ext)
+    for item in assets or []:
+        name = str(item.get("name") or "").lower().replace(" ", ".")
+        if all(token in name for token in tokens):
+            return item
+    return None
 
 
 def check_update() -> dict:
@@ -43,13 +48,7 @@ def check_update() -> dict:
         data = json.loads(response.read().decode("utf-8"))
     latest = str(data.get("tag_name") or "").lstrip("v")
     os_name, arch = _runtime()
-    needle = _asset_name(os_name, arch)
-    asset = None
-    for item in data.get("assets") or []:
-        name = str(item.get("name") or "")
-        if needle in name:
-            asset = item
-            break
+    asset = _pick_asset(data.get("assets") or [], os_name, arch)
     available = bool(latest and is_newer(latest, current))
     return {
         "current": current,
@@ -77,7 +76,7 @@ def download_update(dest: Path | None = None) -> dict:
         info["asset_url"],
         headers={"User-Agent": USER_AGENT, "Accept": "application/octet-stream"},
     )
-    with urllib.request.urlopen(request, timeout=120) as response, target.open("wb") as handle:
+    with urllib.request.urlopen(request, timeout=300) as response, target.open("wb") as handle:
         while True:
             chunk = response.read(1024 * 256)
             if not chunk:
