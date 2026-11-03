@@ -9,7 +9,7 @@
     "start": "electron .",
     "web": "python3 run.py",
     "dist": "electron-builder --mac --arm64 --x64",
-    "dist:win": "electron-builder --win nsis --x64"
+    "dist:win": "electron-builder --win zip --x64 --arm64"
   },
   "devDependencies": {
     "electron": "^38.4.0",
@@ -36,11 +36,16 @@
         ]
       }
     ],
+    "afterPack": "scripts/after-pack.cjs",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "icon": "build/icon.png",
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.utilities",
-      "identity": null,
+      "identity": "-",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
         {
           "target": "dmg",
@@ -55,17 +60,13 @@
       "icon": "build/icon.png",
       "target": [
         {
-          "target": "nsis",
+          "target": "zip",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
           ]
         }
       ]
-    },
-    "nsis": {
-      "oneClick": true,
-      "perMachine": false,
-      "shortcutName": "Pinterest Download by GEMADIPADA"
     },
     "directories": {
       "output": "release"
