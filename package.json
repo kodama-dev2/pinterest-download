@@ -1,7 +1,7 @@
 {
   "name": "pinterest-download",
   "productName": "Pinterest Download by GEMADIPADA",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Desktop app to download images from a Pinterest URL",
   "main": "electron/main.js",
