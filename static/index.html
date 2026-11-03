@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css?v=range1" />
+    <link rel="stylesheet" href="/static/styles.css?v=update1" />
   </head>
   <body>
     <div class="glow glow-a" aria-hidden="true"></div>
@@ -24,6 +24,17 @@
         <p class="lede">
           Pin, board, atau profil. Profil: folder per board, rentang berlaku di tiap folder. Tulis manual jika lebih dari 1000.
         </p>
+        <div class="update-row">
+          <p class="version">Versi <span id="app-version">…</span></p>
+          <button id="check-update" type="button" class="ghost">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.6-6.4" />
+              <path d="M21 3v6h-6" />
+            </svg>
+            <span>Cek pembaruan</span>
+          </button>
+        </div>
+        <p id="update-status" class="hint" hidden></p>
       </header>
 
       <form id="download-form" class="panel" novalidate>
@@ -118,6 +129,6 @@
         <ul id="file-list" class="files"></ul>
       </section>
     </main>
-    <script src="/static/app.js?v=range1" type="module"></script>
+    <script src="/static/app.js?v=update1" type="module"></script>
   </body>
 </html>

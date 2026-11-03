@@ -425,3 +425,56 @@ paintJob(first);
 loadSettings().catch(() => {
   destInput.value = destInput.value || "";
 });
+
+const appVersion = document.querySelector("#app-version");
+const checkUpdate = document.querySelector("#check-update");
+const updateStatus = document.querySelector("#update-status");
+
+async function loadVersion() {
+  const response = await fetch("/api/version");
+  if (!response.ok) return;
+  const data = await response.json();
+  if (appVersion) appVersion.textContent = data.version || "";
+}
+
+function showUpdate(message, ready = false) {
+  if (!updateStatus) return;
+  updateStatus.hidden = false;
+  updateStatus.textContent = message;
+  updateStatus.classList.toggle("ready", ready);
+}
+
+checkUpdate?.addEventListener("click", async () => {
+  const label = checkUpdate.querySelector("span");
+  const previous = label?.textContent || "Cek pembaruan";
+  checkUpdate.disabled = true;
+  if (label) label.textContent = "Mengecek...";
+  try {
+    const check = await fetch("/api/update");
+    const info = await check.json().catch(() => ({}));
+    if (!check.ok) {
+      throw new Error(info.detail || "Gagal cek pembaruan.");
+    }
+    if (!info.available) {
+      showUpdate(`Sudah versi terbaru (${info.current}).`, true);
+      return;
+    }
+    if (label) label.textContent = "Mengunduh...";
+    showUpdate(`Ada versi ${info.latest}. Mengunduh installer...`);
+    const response = await fetch("/api/update/download", { method: "POST" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.detail || "Gagal unduh pembaruan.");
+    }
+    showUpdate(`Versi ${body.latest} sudah diunduh. Pasang dari file yang terbuka.`, true);
+  } catch (error) {
+    showUpdate(error.message || "Gagal cek pembaruan.");
+  } finally {
+    checkUpdate.disabled = false;
+    if (label) label.textContent = previous;
+  }
+});
+
+loadVersion().catch(() => {
+  if (appVersion) appVersion.textContent = "";
+});

@@ -351,6 +351,9 @@ function startBackend(python) {
       PYTHONUNBUFFERED: "1",
       PYTHONNOUSERSITE: "1",
       PINTEREST_DL_HOME: home,
+      PINTEREST_DL_VERSION: app.getVersion(),
+      PINTEREST_DL_OS: process.platform,
+      PINTEREST_DL_ARCH: process.arch,
     },
   });
   startedBackend = true;

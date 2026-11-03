@@ -1,15 +1,16 @@
 {
   "name": "pinterest-download",
   "productName": "Pinterest Download by GEMADIPADA",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Desktop app to download images from a Pinterest URL",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
     "web": "python3 run.py",
-    "dist": "electron-builder --mac --arm64 --x64",
-    "dist:win": "electron-builder --win zip --x64 --arm64"
+    "clean:release": "node scripts/clean-release.cjs",
+    "dist": "node scripts/clean-release.cjs && electron-builder --mac --arm64 --x64",
+    "dist:win": "node scripts/clean-release.cjs && electron-builder --win zip --x64 --arm64"
   },
   "devDependencies": {
     "electron": "^38.4.0",
@@ -32,6 +33,8 @@
           "downloader.py",
           "settings.py",
           "requirements.txt",
+          "version.py",
+          "updater.py",
           "static/**"
         ]
       }

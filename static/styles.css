@@ -158,6 +158,29 @@ h1 {
   max-width: 38rem;
 }
 
+.update-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.version {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+#update-status.ready {
+  color: var(--color-accent);
+}
+
+#check-update {
+  min-height: 40px;
+  padding: 8px 14px;
+}
+
 code {
   color: var(--color-foreground);
   background: rgba(255, 255, 255, 0.06);

@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field
 
 from downloader import download_pinterest, is_pinterest_url, list_downloads, resolve_download
 from settings import load_settings, normalize_dest, save_settings
+from updater import check_update, download_update
+from version import app_version
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -141,6 +143,29 @@ def start_download(body: DownloadRequest):
     )
 
 
+@app.get("/api/version")
+def version():
+    return {"version": app_version()}
+
+
+@app.get("/api/update")
+def update_info():
+    try:
+        return check_update()
+    except Exception as exc:
+        raise HTTPException(502, f"Gagal cek pembaruan: {exc}") from exc
+
+
+@app.post("/api/update/download")
+def update_download():
+    try:
+        return download_update()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Gagal unduh pembaruan: {exc}") from exc
+
+
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "version": app_version()}

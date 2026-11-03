@@ -659,13 +659,26 @@ def _save_media(url: str, path: Path) -> Path | None:
     return path if _http_save(url, path) else None
 
 
+def _www_pin_url(raw: str) -> str:
+    parsed = urlparse(raw.strip())
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 2 or parts[0].lower() != "pin":
+        return raw
+    return f"https://www.pinterest.com/pin/{parts[1]}/"
+
+
 def _feed_sources(url: str) -> list[str]:
     base = url.split("#")[0]
     related = pin_related_url(base)
-    if related:
-        resolved = _canonical_pin_url(base)
-        return [resolved, pin_related_url(resolved) or resolved]
-    return [base]
+    if not related:
+        return [base]
+    resolved = _canonical_pin_url(base)
+    sources = [resolved, pin_related_url(resolved) or resolved]
+    www = _www_pin_url(resolved)
+    if www not in sources:
+        sources.append(www)
+        sources.append(pin_related_url(www) or www)
+    return list(dict.fromkeys(sources))
 
 
 def _iter_feed_pins(url: str):
@@ -690,7 +703,13 @@ def _iter_feed_pins(url: str):
         try:
             stream = extr.pins()
         except Exception:
-            continue
+            stream = None
+        if stream is None and "#related" in source:
+            pin_id = str(getattr(extr, "pin_id", "") or "")
+            try:
+                stream = extr.api.pin_related(pin_id) if pin_id else None
+            except Exception:
+                stream = None
         if stream is None:
             continue
         try:
@@ -812,21 +831,37 @@ def _fast_single_feed(
             with lock:
                 if len(saved) >= limit:
                     break
-            media = _best_file(extr, pin)
-            if not media:
-                continue
-            media_url = media.get("url") or ""
-            if not media_url:
-                continue
-            if "m3u8" in media_url or media_url.startswith("ytdl:"):
-                ext = "mp4"
-            else:
-                ext = (urlparse(media_url).path.rsplit(".", 1)[-1] or "jpg").lower()
-                if ext not in {"jpg", "jpeg", "png", "webp", "gif", "mp4", "mov"}:
-                    ext = "jpg"
+            try:
+                files = extr._extract_files(pin) or []
+            except Exception:
+                files = []
+            if not files:
+                media = _best_file(extr, pin)
+                files = [media] if media else []
             folder = _save_folder(dest_path, pin, flat, folder_override)
-            path = folder / f"{_safe_name(key)}.{ext}"
-            futures.add(pool.submit(work, media_url, path))
+            usable = []
+            for media in files:
+                if not isinstance(media, dict):
+                    continue
+                media_url = media.get("url") or ""
+                if not media_url or media_url.startswith("text:"):
+                    continue
+                usable.append((media_url, media))
+            for index, (media_url, media) in enumerate(usable, 1):
+                with lock:
+                    if len(saved) >= limit:
+                        break
+                if "m3u8" in media_url or media_url.startswith("ytdl:"):
+                    ext = "mp4"
+                else:
+                    ext = (urlparse(media_url).path.rsplit(".", 1)[-1] or "jpg").lower()
+                    if ext not in {"jpg", "jpeg", "png", "webp", "gif", "mp4", "mov"}:
+                        ext = "jpg"
+                suffix = f"_{index}" if len(usable) > 1 else ""
+                extra = str(media.get("page_id") or media.get("media_id") or "")[:12]
+                name = _safe_name(f"{key}{suffix}_{extra}" if extra and len(usable) > 1 else f"{key}{suffix}")
+                path = folder / f"{name}.{ext}"
+                futures.add(pool.submit(work, media_url, path))
         if futures:
             wait(futures)
 
