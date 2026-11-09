@@ -30,6 +30,23 @@ let jobs = [];
 let activeId = "";
 let nextJob = 1;
 
+async function chooseFolder(currentDest = "") {
+  if (window.pinterestApp?.pickFolder) {
+    return window.pinterestApp.pickFolder();
+  }
+  const response = await fetch("/api/pick-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dest: (currentDest || destValue()).trim() || null }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof data.detail === "string" ? data.detail : "Gagal membuka pemilih folder.");
+  }
+  if (data.canceled || !data.path) return null;
+  return data.path;
+}
+
 function createJob() {
   const job = {
     id: `job-${nextJob}`,
@@ -69,6 +86,9 @@ function selectedRange() {
   return { start, end: PRESETS[start] || start + 99 };
 }
 
+let notePinRange = () => {};
+let noteIgRange = () => {};
+
 function syncRangeUi(start, end) {
   const presetEnd = PRESETS[start];
   const isPreset = presetEnd != null && Number(end) === presetEnd;
@@ -78,7 +98,125 @@ function syncRangeUi(start, end) {
   if (radio) radio.checked = true;
   rangeFrom.value = String(start || "");
   rangeTo.value = String(end || "");
-  rangeManual.hidden = radio?.value !== "custom";
+  rangeManual.hidden = true;
+  notePinRange();
+}
+
+function bindRangePopover({ formEl, name, box, from, to, onCommit }) {
+  const wrap = box?.closest(".limit-manual");
+  const manualLabel = wrap?.querySelector("label");
+  if (!formEl || !box || !from || !to || !wrap || !manualLabel) return () => {};
+
+  let committed = { mode: "1", from: "1", to: "100" };
+  let suspend = false;
+
+  function note() {
+    const checked = formEl.querySelector(`input[name="${name}"]:checked`);
+    committed = {
+      mode: checked?.value || "1",
+      from: from.value,
+      to: to.value,
+    };
+  }
+
+  function place() {
+    box.hidden = false;
+    box.style.left = "0";
+    box.style.right = "auto";
+    const panel = box.closest(".panel");
+    if (!panel) return;
+    const pop = box.getBoundingClientRect();
+    const bounds = panel.getBoundingClientRect();
+    if (pop.right > bounds.right - 8) {
+      box.style.left = "auto";
+      box.style.right = "0";
+    }
+  }
+
+  function openDraft() {
+    if (committed.mode === "custom") {
+      from.value = committed.from;
+      to.value = committed.to;
+    } else {
+      from.value = "1001";
+      to.value = "2000";
+    }
+    place();
+    from.focus();
+    try {
+      from.select();
+    } catch {
+      /* number input */
+    }
+  }
+
+  function cancel() {
+    if (suspend) return;
+    suspend = true;
+    const radio = formEl.querySelector(`input[name="${name}"][value="${committed.mode}"]`);
+    if (radio) radio.checked = true;
+    from.value = committed.from;
+    to.value = committed.to;
+    box.hidden = true;
+    suspend = false;
+  }
+
+  function commit() {
+    const start = Number(from.value);
+    const end = Number(to.value);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) return;
+    suspend = true;
+    const custom = formEl.querySelector(`input[name="${name}"][value="custom"]`);
+    if (custom) custom.checked = true;
+    box.hidden = true;
+    note();
+    suspend = false;
+    onCommit({ start, end });
+  }
+
+  manualLabel.addEventListener("click", () => {
+    if (!box.hidden) return;
+    openDraft();
+  });
+
+  formEl.querySelectorAll(`input[name="${name}"]`).forEach((radio) => {
+    radio.addEventListener("change", () => {
+      if (suspend || radio.value === "custom") return;
+      const start = Number(radio.value);
+      from.value = String(start);
+      to.value = String(PRESETS[start] || start + 99);
+      box.hidden = true;
+      note();
+      onCommit({ start, end: Number(to.value) });
+    });
+  });
+
+  box.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+    }
+  });
+
+  box.addEventListener("focusout", (event) => {
+    if (box.hidden || suspend) return;
+    const next = event.relatedTarget;
+    if (!next || box.contains(next) || wrap.contains(next)) return;
+    cancel();
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (box.hidden || suspend) return;
+    const target = event.target;
+    if (!(target instanceof Node) || box.contains(target) || wrap.contains(target)) return;
+    cancel();
+  });
+
+  note();
+  return note;
 }
 
 function destValue() {
@@ -200,9 +338,27 @@ async function loadSettings() {
   if (!response.ok) return;
   const data = await response.json();
   destInput.value = data.dest || "";
+  const igDestField = document.querySelector("#ig-dest");
+  if (igDestField) igDestField.value = data.dest || "";
   const start = Number(data.start || 1);
   const end = Number(data.end || start + 99);
   syncRangeUi(start, end);
+  const igFormEl = document.querySelector("#ig-form");
+  const igRangeManualEl = document.querySelector("#ig-range-manual");
+  const igRangeFromEl = document.querySelector("#ig-range-from");
+  const igRangeToEl = document.querySelector("#ig-range-to");
+  if (igFormEl) {
+    const presetEnd = PRESETS[start];
+    const isPreset = presetEnd != null && Number(end) === presetEnd;
+    const radio = igFormEl.querySelector(
+      isPreset ? `input[name='ig-start'][value='${start}']` : "input[name='ig-start'][value='custom']"
+    );
+    if (radio) radio.checked = true;
+    if (igRangeFromEl) igRangeFromEl.value = String(start || "");
+    if (igRangeToEl) igRangeToEl.value = String(end || "");
+    if (igRangeManualEl) igRangeManualEl.hidden = true;
+    noteIgRange();
+  }
 }
 
 async function persistSettings() {
@@ -337,11 +493,10 @@ addTab.addEventListener("click", () => {
 
 pickFolder.addEventListener("click", async () => {
   try {
-    if (window.pinterestApp?.pickFolder) {
-      const folder = await window.pinterestApp.pickFolder();
-      if (!folder) return;
-      destInput.value = folder;
-    }
+    const folder = await chooseFolder(destInput.value);
+    if (!folder) return;
+    destInput.value = folder;
+    if (igDest) igDest.value = folder;
     await persistSettings();
   } catch (error) {
     const job = activeJob();
@@ -350,47 +505,19 @@ pickFolder.addEventListener("click", async () => {
   }
 });
 
-form.querySelectorAll("input[name='start']").forEach((radio) => {
-  radio.addEventListener("change", () => {
-    if (radio.value === "custom") {
-      rangeManual.hidden = false;
-      if (!rangeFrom.value) rangeFrom.value = "1001";
-      if (!rangeTo.value) rangeTo.value = "2000";
-      rangeFrom.focus();
-    } else {
-      const start = Number(radio.value);
-      rangeFrom.value = String(start);
-      rangeTo.value = String(PRESETS[start] || start + 99);
-      rangeManual.hidden = true;
-    }
+notePinRange = bindRangePopover({
+  formEl: form,
+  name: "start",
+  box: rangeManual,
+  from: rangeFrom,
+  to: rangeTo,
+  onCommit() {
     persistSettings().catch((error) => {
       const job = activeJob();
       job.error = error.message;
       paintJob(job);
     });
-  });
-});
-
-[rangeFrom, rangeTo].forEach((field) => {
-  field.addEventListener("change", () => {
-    const custom = form.querySelector("input[name='start'][value='custom']");
-    if (custom) custom.checked = true;
-    rangeManual.hidden = false;
-    const range = selectedRange();
-    if (
-      !Number.isInteger(range.start) ||
-      !Number.isInteger(range.end) ||
-      range.start < 1 ||
-      range.end < range.start
-    ) {
-      return;
-    }
-    persistSettings().catch((error) => {
-      const job = activeJob();
-      job.error = error.message;
-      paintJob(job);
-    });
-  });
+  },
 });
 
 destInput.addEventListener("change", () => {
@@ -445,10 +572,8 @@ function showUpdate(message, ready = false) {
 }
 
 checkUpdate?.addEventListener("click", async () => {
-  const label = checkUpdate.querySelector("span");
-  const previous = label?.textContent || "Update software";
   checkUpdate.disabled = true;
-  if (label) label.textContent = "Mengecek...";
+  showUpdate("Mengecek pembaruan...");
   try {
     const check = await fetch("/api/update");
     const info = await check.json().catch(() => ({}));
@@ -460,7 +585,6 @@ checkUpdate?.addEventListener("click", async () => {
       showUpdate(`Sudah versi terbaru (v${info.current}).`, true);
       return;
     }
-    if (label) label.textContent = "Mengunduh...";
     showUpdate(`Ada v${info.latest}. Mengunduh ${info.asset || "installer"} dari GitHub...`);
     const response = await fetch("/api/update/download", { method: "POST" });
     const body = await response.json().catch(() => ({}));
@@ -472,10 +596,482 @@ checkUpdate?.addEventListener("click", async () => {
     showUpdate(error.message || "Gagal update software.");
   } finally {
     checkUpdate.disabled = false;
-    if (label) label.textContent = previous;
   }
 });
 
 loadVersion().catch(() => {
   if (appVersion) appVersion.textContent = "";
 });
+
+const heroTitle = document.querySelector("#hero-title");
+const heroLede = document.querySelector("#hero-lede");
+const platformTabs = Array.from(document.querySelectorAll(".platform-tab[data-platform]"));
+const viewPinterest = document.querySelector("#view-pinterest");
+const viewInstagram = document.querySelector("#view-instagram");
+const viewTiktok = document.querySelector("#view-tiktok");
+const viewChangelog = document.querySelector("#view-changelog");
+const openChangelog = document.querySelector("#open-changelog");
+const closeChangelog = document.querySelector("#close-changelog");
+
+const igForm = document.querySelector("#ig-form");
+const igUrl = document.querySelector("#ig-url");
+const igDest = document.querySelector("#ig-dest");
+const igPickFolder = document.querySelector("#ig-pick-folder");
+const igSubmit = document.querySelector("#ig-submit");
+const igOpenFolder = document.querySelector("#ig-open-folder");
+const igFormError = document.querySelector("#ig-form-error");
+const igStatus = document.querySelector("#ig-status");
+const igProgress = document.querySelector("#ig-progress");
+const igFileList = document.querySelector("#ig-file-list");
+const igRangeManual = document.querySelector("#ig-range-manual");
+const igRangeFrom = document.querySelector("#ig-range-from");
+const igRangeTo = document.querySelector("#ig-range-to");
+const igLogin = document.querySelector("#ig-login");
+const igLogout = document.querySelector("#ig-logout");
+const igAuthStatus = document.querySelector("#ig-auth-status");
+
+const COPY = {
+  pinterest: {
+    title: "Tempel URL, unduh semua image dan video",
+    lede: "Pin, board, atau profil. Profil: folder per board, rentang berlaku di tiap folder. Tulis manual jika lebih dari 1000.",
+  },
+  instagram: {
+    title: "Login sekali, unduh feed Instagram",
+    lede: "Profil, posts, reels, atau satu post/reel. Cookie diambil dari halaman Instagram nyata di app.",
+  },
+  tiktok: {
+    title: "TikTok segera hadir",
+    lede: "Belum tersedia. Pakai Pinterest atau Instagram dulu.",
+  },
+};
+
+let currentPlatform = "pinterest";
+let igBusy = false;
+let igCount = 0;
+let igFolder = "";
+let igFiles = [];
+
+function selectedIgRange() {
+  const checked = igForm?.querySelector("input[name='ig-start']:checked");
+  const value = checked?.value || "1";
+  if (value === "custom") {
+    return { start: Number(igRangeFrom.value), end: Number(igRangeTo.value) };
+  }
+  const start = Number(value);
+  return { start, end: PRESETS[start] || start + 99 };
+}
+
+function syncIgRangeUi(start, end) {
+  if (!igForm) return;
+  const presetEnd = PRESETS[start];
+  const isPreset = presetEnd != null && Number(end) === presetEnd;
+  const radio = igForm.querySelector(
+    isPreset ? `input[name='ig-start'][value='${start}']` : "input[name='ig-start'][value='custom']"
+  );
+  if (radio) radio.checked = true;
+  if (igRangeFrom) igRangeFrom.value = String(start || "");
+  if (igRangeTo) igRangeTo.value = String(end || "");
+  if (igRangeManual) igRangeManual.hidden = radio?.value !== "custom";
+}
+
+function hideChangelog() {
+  if (viewChangelog) viewChangelog.hidden = true;
+  openChangelog?.setAttribute("aria-pressed", "false");
+}
+
+function showChangelog() {
+  if (viewPinterest) viewPinterest.hidden = true;
+  if (viewInstagram) viewInstagram.hidden = true;
+  if (viewTiktok) viewTiktok.hidden = true;
+  if (viewChangelog) viewChangelog.hidden = false;
+  openChangelog?.setAttribute("aria-pressed", "true");
+}
+
+function setPlatform(platform) {
+  if (platform === "tiktok") return;
+  hideChangelog();
+  currentPlatform = platform;
+  document.body.dataset.platform = platform;
+  platformTabs.forEach((tab) => {
+    const active = tab.dataset.platform === platform;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-pressed", String(active));
+  });
+  if (viewPinterest) viewPinterest.hidden = platform !== "pinterest";
+  if (viewInstagram) viewInstagram.hidden = platform !== "instagram";
+  if (viewTiktok) viewTiktok.hidden = platform !== "tiktok";
+  const copy = COPY[platform] || COPY.pinterest;
+  if (heroTitle) heroTitle.textContent = copy.title;
+  if (heroLede) heroLede.textContent = copy.lede;
+  if (platform === "instagram") {
+    refreshIgAuth().catch(() => {});
+  }
+}
+
+platformTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    if (tab.disabled || tab.classList.contains("soon")) return;
+    setPlatform(tab.dataset.platform);
+  });
+});
+
+openChangelog?.addEventListener("click", () => {
+  if (viewChangelog && !viewChangelog.hidden) {
+    hideChangelog();
+    setPlatform(currentPlatform);
+    return;
+  }
+  showChangelog();
+});
+
+closeChangelog?.addEventListener("click", () => {
+  hideChangelog();
+  setPlatform(currentPlatform);
+});
+
+async function refreshIgAuth() {
+  try {
+    const response = await fetch("/api/instagram/status");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (igAuthStatus) igAuthStatus.textContent = data.detail || "Status Instagram gagal dibaca.";
+      return data;
+    }
+    if (igAuthStatus) igAuthStatus.textContent = data.message || "";
+    if (igLogout) igLogout.hidden = !data.logged_in;
+    if (igLogin) {
+      const label = igLogin.querySelector("span");
+      if (label) label.textContent = data.logged_in ? "Buka Instagram lagi" : "Buka Instagram";
+    }
+    return data;
+  } catch {
+    if (igAuthStatus) {
+      igAuthStatus.textContent = "Backend belum jalan. Nyalakan app/dev server dulu.";
+    }
+    return { logged_in: false };
+  }
+}
+
+function paintIg() {
+  if (igFormError) {
+    igFormError.hidden = !igFormError.textContent;
+  }
+  if (igStatus) igStatus.textContent = igStatus.dataset.message || "Belum ada unduhan.";
+  if (igProgress) {
+    igProgress.hidden = false;
+    igProgress.classList.toggle("active", igBusy);
+    igProgress.classList.toggle("done", !igBusy && igCount > 0);
+  }
+  if (igSubmit) igSubmit.disabled = igBusy;
+  if (igUrl) igUrl.disabled = igBusy;
+}
+
+function isVideoFile(file) {
+  const name = `${file?.name || ""} ${file?.path || ""}`.toLowerCase();
+  return file?.kind === "video" || /\.(mp4|mov|m4v|webm)(?:$|\?)/i.test(name);
+}
+
+function addIgFile(file) {
+  igFiles.push(file);
+  if (!igFileList) return;
+  const item = document.createElement("li");
+  const img = document.createElement("img");
+  const dest = encodeURIComponent(igDest?.value.trim() || destValue());
+  const video = isVideoFile(file);
+  if (video && file.thumb) {
+    img.src = file.thumb;
+    item.classList.add("is-video");
+  } else if (!video) {
+    img.src = `/api/file/${encodeURI(file.path)}?dest=${dest}`;
+  } else {
+    // Jangan pakai .mp4 sebagai src img.
+    img.alt = file.name;
+    img.classList.add("thumb-missing");
+    item.classList.add("is-video");
+  }
+  img.alt = file.name;
+  img.loading = "lazy";
+  img.referrerPolicy = "no-referrer";
+  const meta = document.createElement("div");
+  const name = document.createElement("p");
+  name.textContent = `${file.label || file.number || igCount}. ${file.name}`;
+  const path = document.createElement("span");
+  path.textContent = file.path;
+  meta.append(name, path);
+  item.append(img, meta);
+  igFileList.append(item);
+}
+
+function applyIgEvent(data) {
+  if (data.type === "status") {
+    if (igStatus) {
+      igStatus.dataset.message = data.message;
+      igStatus.textContent = data.message;
+    }
+  }
+  if (data.type === "file") {
+    igCount += 1;
+    if (igStatus) {
+      const posts = data.posts_taken;
+      const limit = data.posts_limit;
+      const postNo = data.post || data.number;
+      igStatus.dataset.message =
+        posts && limit
+          ? `Post ${postNo} dari rentang (${posts}/${limit} post) · ${igCount} file`
+          : `${igCount} file tersimpan...`;
+      igStatus.textContent = igStatus.dataset.message;
+    }
+    addIgFile(data);
+  }
+  if (data.type === "error" && igFormError) {
+    igFormError.textContent = data.message;
+    igFormError.hidden = false;
+  }
+  if (data.type === "done") {
+    igFolder = data.folder || "";
+    if (data.count > 0 && igStatus) {
+      const posts = data.posts || 0;
+      const label = data.label || "";
+      igStatus.dataset.message = posts
+        ? `${posts} post (${label}) · ${data.count} file di ${data.folder || igDest?.value || ""}.`
+        : `${data.count} file tersimpan di ${data.folder || igDest?.value || ""}.`;
+      igStatus.textContent = igStatus.dataset.message;
+    } else if (igStatus && !igFormError?.textContent) {
+      igStatus.dataset.message = "Tidak ada file yang bisa diunduh dari URL ini.";
+      igStatus.textContent = igStatus.dataset.message;
+    }
+  }
+  paintIg();
+}
+
+const igSession = document.querySelector("#ig-sessionid");
+const igSaveSession = document.querySelector("#ig-save-session");
+const igSessionInfo = document.querySelector("#ig-session-info");
+const igSessionHelp = document.querySelector("#ig-session-help");
+
+function setIgSessionHelp(open) {
+  if (!igSessionInfo || !igSessionHelp) return;
+  igSessionHelp.hidden = !open;
+  igSessionInfo.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+igSessionInfo?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setIgSessionHelp(igSessionHelp?.hidden !== false);
+});
+
+document.addEventListener("click", (event) => {
+  if (!igSessionHelp || igSessionHelp.hidden) return;
+  const target = event.target;
+  if (igSessionHelp.contains(target) || igSessionInfo?.contains(target)) return;
+  setIgSessionHelp(false);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setIgSessionHelp(false);
+});
+
+igLogin?.addEventListener("click", async () => {
+  const label = igLogin.querySelector("span");
+  const previous = label?.textContent || "Buka Instagram";
+  igLogin.disabled = true;
+  if (label) label.textContent = "Membuka...";
+  try {
+    if (window.pinterestApp?.instagramLogin) {
+      const result = await window.pinterestApp.instagramLogin();
+      if (result?.canceled) {
+        if (igAuthStatus) igAuthStatus.textContent = "Login dibatalkan. Bisa tempel sessionid manual.";
+        return;
+      }
+      if (!result?.ok) {
+        throw new Error(result?.error || "Login otomatis gagal. Tempel sessionid saja.");
+      }
+      await refreshIgAuth();
+      return;
+    }
+    window.open("https://www.instagram.com/accounts/login/", "_blank", "noopener,noreferrer");
+    if (igAuthStatus) {
+      igAuthStatus.textContent = "Login di browser, lalu tempel sessionid di bawah dan Simpan session.";
+    }
+    igSession?.focus();
+  } catch (error) {
+    if (igAuthStatus) igAuthStatus.textContent = error.message || "Gagal membuka Instagram.";
+  } finally {
+    igLogin.disabled = false;
+    if (label) label.textContent = previous;
+    refreshIgAuth().catch(() => {});
+  }
+});
+
+igSaveSession?.addEventListener("click", async () => {
+  const raw = igSession?.value.trim() || "";
+  if (!raw) {
+    if (igAuthStatus) igAuthStatus.textContent = "Tempel sessionid dulu.";
+    igSession?.focus();
+    return;
+  }
+  igSaveSession.disabled = true;
+  try {
+    const response = await fetch("/api/instagram/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        raw.includes("\t") || raw.includes("\n")
+          ? { cookies_text: raw }
+          : { sessionid: raw }
+      ),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof data.detail === "string" ? data.detail : "Gagal menyimpan session.");
+    }
+    if (igSession) igSession.value = "";
+    if (igFormError) {
+      igFormError.textContent = "";
+      igFormError.hidden = true;
+    }
+    await refreshIgAuth();
+  } catch (error) {
+    if (igAuthStatus) {
+      igAuthStatus.textContent =
+        error?.message === "Failed to fetch"
+          ? "Backend belum jalan. Nyalakan app/dev server dulu."
+          : error.message || "Gagal menyimpan session.";
+    }
+  } finally {
+    igSaveSession.disabled = false;
+  }
+});
+
+igLogout?.addEventListener("click", async () => {
+  try {
+    await fetch("/api/instagram/logout", { method: "POST" });
+  } catch {
+    // ignore
+  }
+  await refreshIgAuth();
+});
+
+igForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (igBusy) return;
+  const url = igUrl?.value.trim() || "";
+  const range = selectedIgRange();
+  if (igFormError) {
+    igFormError.textContent = "";
+    igFormError.hidden = true;
+  }
+  if (!url) {
+    if (igFormError) {
+      igFormError.textContent = "URL Instagram wajib diisi.";
+      igFormError.hidden = false;
+    }
+    return;
+  }
+  if (!Number.isInteger(range.start) || !Number.isInteger(range.end) || range.start < 1 || range.end < range.start) {
+    if (igFormError) {
+      igFormError.textContent = "Isi rentang manual, misalnya 1001–2000.";
+      igFormError.hidden = false;
+    }
+    return;
+  }
+
+  igBusy = true;
+  igCount = 0;
+  igFiles = [];
+  igFolder = "";
+  if (igFileList) igFileList.replaceChildren();
+  if (igStatus) {
+    igStatus.dataset.message = "Mengambil daftar file dari Instagram...";
+    igStatus.textContent = igStatus.dataset.message;
+  }
+  paintIg();
+
+  try {
+    const settings = await persistSettingsFromIg(range);
+    if (igDest) igDest.value = settings.dest;
+    destInput.value = settings.dest;
+    const response = await fetch("/api/instagram/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        dest: settings.dest,
+        start: settings.start,
+        end: settings.end,
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(typeof body.detail === "string" ? body.detail : "Gagal memulai unduhan Instagram.");
+    }
+    await readEvents(response, applyIgEvent);
+  } catch (error) {
+    const message =
+      error?.message === "Failed to fetch"
+        ? "Backend belum jalan. Nyalakan app/dev server dulu."
+        : error.message || "Unduhan Instagram gagal.";
+    if (igFormError) {
+      igFormError.textContent = message;
+      igFormError.hidden = false;
+    }
+    if (igStatus) {
+      igStatus.dataset.message = "Unduhan Instagram gagal.";
+      igStatus.textContent = igStatus.dataset.message;
+    }
+  } finally {
+    igBusy = false;
+    paintIg();
+  }
+});
+
+async function persistSettingsFromIg(range) {
+  const response = await fetch("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dest: (igDest?.value || destValue()).trim(), ...range }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || "Pengaturan tidak tersimpan.");
+  }
+  return response.json();
+}
+
+igPickFolder?.addEventListener("click", async () => {
+  try {
+    const folder = await chooseFolder(igDest?.value || destValue());
+    if (!folder) return;
+    if (igDest) igDest.value = folder;
+    destInput.value = folder;
+    await persistSettingsFromIg(selectedIgRange());
+  } catch (error) {
+    if (igFormError) {
+      igFormError.textContent = error.message;
+      igFormError.hidden = false;
+    }
+  }
+});
+
+noteIgRange = bindRangePopover({
+  formEl: igForm,
+  name: "ig-start",
+  box: igRangeManual,
+  from: igRangeFrom,
+  to: igRangeTo,
+  onCommit(range) {
+    persistSettingsFromIg(range).catch(() => {});
+  },
+});
+
+igOpenFolder?.addEventListener("click", async () => {
+  await fetch("/api/open-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dest: (igDest?.value || destValue()).trim(), folder: igFolder }),
+  });
+});
+
+setPlatform("pinterest");
+

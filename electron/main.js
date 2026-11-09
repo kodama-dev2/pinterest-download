@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require("electron");
 const { execFile, spawn } = require("child_process");
 const { promisify } = require("util");
 const http = require("http");
@@ -408,8 +408,11 @@ function createWindow() {
 }
 
 ipcMain.handle("pick-folder", async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  const result = await dialog.showOpenDialog(win, {
+  const win =
+    BrowserWindow.fromWebContents(event.sender) ||
+    BrowserWindow.getFocusedWindow() ||
+    BrowserWindow.getAllWindows()[0];
+  const result = await dialog.showOpenDialog(win || undefined, {
     title: "Pilih folder unduhan",
     properties: ["openDirectory", "createDirectory"],
   });
@@ -417,6 +420,99 @@ ipcMain.handle("pick-folder", async (event) => {
     return null;
   }
   return result.filePaths[0];
+});
+
+ipcMain.handle("instagram-login", async () => {
+  const ses = session.fromPartition("persist:instagram");
+  const loginWin = new BrowserWindow({
+    width: 480,
+    height: 780,
+    backgroundColor: "#090304",
+    title: "Login Instagram",
+    icon: APP_ICON,
+    autoHideMenuBar: true,
+    webPreferences: {
+      partition: "persist:instagram",
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  loginWin.loadURL("https://www.instagram.com/accounts/login/");
+
+  return await new Promise((resolve) => {
+    let settled = false;
+    const finish = (payload) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(timer);
+      if (!loginWin.isDestroyed()) loginWin.close();
+      resolve(payload);
+    };
+
+    const saveCookies = async () => {
+      const cookies = await ses.cookies.get({ domain: ".instagram.com" });
+      const sessionCookie = cookies.find((item) => item.name === "sessionid" && item.value);
+      const url = loginWin.isDestroyed() ? "" : loginWin.webContents.getURL();
+      if (!sessionCookie) return false;
+      if (url.includes("/accounts/login") || url.includes("/challenge")) return false;
+      const body = JSON.stringify({
+        cookies: cookies.map((item) => ({
+          name: item.name,
+          value: item.value,
+          domain: item.domain,
+          path: item.path,
+          secure: item.secure,
+          expirationDate: item.expirationDate || 0,
+        })),
+      });
+      const result = await new Promise((done) => {
+        const req = http.request(
+          {
+            hostname: HOST,
+            port: PORT,
+            path: "/api/instagram/cookies",
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(body),
+            },
+          },
+          (res) => {
+            let raw = "";
+            res.on("data", (chunk) => {
+              raw += chunk;
+            });
+            res.on("end", () => {
+              done({ status: res.statusCode, raw });
+            });
+          }
+        );
+        req.on("error", (error) => done({ status: 0, raw: String(error) }));
+        req.write(body);
+        req.end();
+      });
+      if (result.status >= 200 && result.status < 300) {
+        finish({ ok: true });
+        return true;
+      }
+      let detail = "Gagal menyimpan cookie Instagram.";
+      try {
+        detail = JSON.parse(result.raw).detail || detail;
+      } catch {
+        // keep default
+      }
+      finish({ ok: false, error: detail });
+      return true;
+    };
+
+    const timer = setInterval(() => {
+      saveCookies().catch(() => {});
+    }, 1500);
+
+    loginWin.on("closed", () => {
+      finish({ ok: false, canceled: true });
+    });
+  });
 });
 
 function bootHtml(title, detail) {

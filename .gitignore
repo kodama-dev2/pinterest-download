@@ -10,6 +10,7 @@ __pycache__/
 node_modules/
 release/*
 settings.json
+instagram_cookies.txt
 .electron-backend.log
 backend.log
 downloads/*

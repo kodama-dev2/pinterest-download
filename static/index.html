@@ -9,127 +9,326 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css?v=update2" />
+    <link rel="stylesheet" href="/static/styles.css?v=ig-info1" />
   </head>
-  <body>
+  <body data-platform="pinterest">
     <div class="glow glow-a" aria-hidden="true"></div>
     <div class="glow glow-b" aria-hidden="true"></div>
     <div class="glow glow-c" aria-hidden="true"></div>
     <div class="titlebar" aria-hidden="true"></div>
+
+    <nav class="platform-nav" aria-label="Platform unduhan">
+      <div class="platform-nav-inner">
+        <button type="button" class="platform-tab active" data-platform="pinterest" aria-pressed="true">
+          Pinterest
+        </button>
+        <button type="button" class="platform-tab" data-platform="instagram" aria-pressed="false">
+          Instagram
+        </button>
+        <button type="button" class="platform-tab soon" data-platform="tiktok" aria-pressed="false" disabled>
+          TikTok <span class="soon-badge">soon</span>
+        </button>
+      </div>
+    </nav>
+
     <main class="page">
       <header class="hero">
         <img class="brand-logo" src="/static/logo.png" alt="Pinterest Download by GEMADIPADA" />
-        <p class="eyebrow">Pinterest Download by GEMADIPADA</p>
-        <p class="version-badge">v<span id="app-version">1.0.4</span></p>
-        <h1>Tempel URL, unduh semua image dan video</h1>
-        <p class="lede">
+        <p class="eyebrow">Download by GEMADIPADA</p>
+        <p class="version-badge">v<span id="app-version">1.0.5</span></p>
+        <h1 id="hero-title">Tempel URL, unduh semua image dan video</h1>
+        <p class="lede" id="hero-lede">
           Pin, board, atau profil. Profil: folder per board, rentang berlaku di tiap folder. Tulis manual jika lebih dari 1000.
         </p>
         <div class="update-row">
-          <button id="check-update" type="button" class="ghost">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <path d="M7 10 12 15 17 10" />
-              <path d="M12 15V3" />
+          <button id="open-changelog" type="button" class="text-btn" aria-pressed="false">Changelog</button>
+          <button id="check-update" type="button" class="ghost" aria-label="Update software">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+              <path d="M8 16H3v5" />
             </svg>
-            <span>Update software</span>
           </button>
         </div>
         <p id="update-status" class="hint" hidden></p>
       </header>
 
-      <form id="download-form" class="panel" novalidate>
-        <label for="dest">Folder unduhan</label>
-        <div class="folder-row">
-          <input id="dest" name="dest" type="text" spellcheck="false" />
-          <button id="pick-folder" type="button" class="ghost">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            </svg>
-            <span>Pilih folder</span>
-          </button>
-        </div>
-
-        <fieldset class="limits">
-          <legend>Rentang pin</legend>
-          <div class="limit-options" role="radiogroup" aria-label="Rentang pin">
-            <label><input type="radio" name="start" value="1" checked /> 1–100</label>
-            <label><input type="radio" name="start" value="101" /> 101–200</label>
-            <label><input type="radio" name="start" value="201" /> 201–300</label>
-            <label><input type="radio" name="start" value="301" /> 301–400</label>
-            <label><input type="radio" name="start" value="401" /> 401–500</label>
-            <label><input type="radio" name="start" value="custom" /> Manual</label>
+      <section id="view-pinterest" class="platform-view" data-view="pinterest">
+        <form id="download-form" class="panel" novalidate>
+          <div class="url-block">
+            <label for="url">URL Pinterest</label>
+            <div class="field">
+              <span class="field-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l1.07-1.07a5 5 0 0 0-7.07-7.07L10.4 6.54" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54L5.4 11.54a5 5 0 0 0 7.07 7.07l1.13-1.13" />
+                </svg>
+              </span>
+              <input
+                id="url"
+                name="url"
+                type="url"
+                inputmode="url"
+                autocomplete="url"
+                placeholder="https://www.pinterest.com/username/nama-board/"
+                required
+              />
+            </div>
+            <p class="hint">Manual: tulis 201–1000, lalu 1001–2000, dan seterusnya. Satu kotak maksimal 2000 pin. Profil: rentang berlaku per folder.</p>
           </div>
-          <div class="range-manual" id="range-manual" hidden>
-            <label for="range-from">Dari</label>
-            <input id="range-from" name="range-from" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="1001" />
-            <span class="range-sep" aria-hidden="true">–</span>
-            <label for="range-to">Sampai</label>
-            <input id="range-to" name="range-to" type="number" min="1" max="102000" step="1" inputmode="numeric" placeholder="2000" />
+
+          <label for="dest">Folder unduhan</label>
+          <div class="folder-row">
+            <input id="dest" name="dest" type="text" spellcheck="false" />
+            <button id="pick-folder" type="button" class="ghost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+              <span>Pilih folder</span>
+            </button>
           </div>
-        </fieldset>
 
-        <div class="job-bar">
-          <div id="tab-list" class="tab-list" role="tablist" aria-label="Job unduhan"></div>
-          <button id="add-tab" type="button" class="ghost tab-add">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M12 5v14" />
-              <path d="M5 12h14" />
-            </svg>
-            <span>Tambah</span>
-          </button>
-        </div>
+          <fieldset class="limits">
+            <legend>Rentang pin</legend>
+            <div class="limit-options" role="radiogroup" aria-label="Rentang pin">
+              <label><input type="radio" name="start" value="1" checked /> 1–100</label>
+              <label><input type="radio" name="start" value="101" /> 101–200</label>
+              <label><input type="radio" name="start" value="201" /> 201–300</label>
+              <label><input type="radio" name="start" value="301" /> 301–400</label>
+              <label><input type="radio" name="start" value="401" /> 401–500</label>
+              <div class="limit-manual">
+                <label><input type="radio" name="start" value="custom" /> Manual</label>
+                <div class="range-manual" id="range-manual" hidden role="group" aria-label="Rentang manual">
+                  <label for="range-from">Dari</label>
+                  <input id="range-from" name="range-from" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="1001" />
+                  <span class="range-sep" aria-hidden="true">–</span>
+                  <label for="range-to">Sampai</label>
+                  <input id="range-to" name="range-to" type="number" min="1" max="102000" step="1" inputmode="numeric" placeholder="2000" />
+                </div>
+              </div>
+            </div>
+          </fieldset>
 
-        <label for="url">URL Pinterest</label>
-        <div class="field">
-          <span class="field-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M10 13a5 5 0 0 0 7.54.54l1.07-1.07a5 5 0 0 0-7.07-7.07L10.4 6.54" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54L5.4 11.54a5 5 0 0 0 7.07 7.07l1.13-1.13" />
-            </svg>
-          </span>
-          <input
-            id="url"
-            name="url"
-            type="url"
-            inputmode="url"
-            autocomplete="url"
-            placeholder="https://www.pinterest.com/username/nama-board/"
-            required
-          />
-        </div>
-        <p class="hint">Manual: tulis 201–1000, lalu 1001–2000, dan seterusnya. Satu kotak maksimal 2000 pin. Profil: rentang berlaku per folder.</p>
-        <p id="form-error" class="error" hidden></p>
+          <div class="job-bar">
+            <div id="tab-list" class="tab-list" role="tablist" aria-label="Job unduhan"></div>
+            <button id="add-tab" type="button" class="ghost tab-add">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+              <span>Tambah</span>
+            </button>
+          </div>
 
-        <div class="actions">
-          <button id="submit" type="submit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M12 3v12" />
-              <path d="m7 11 5 5 5-5" />
-              <path d="M5 21h14" />
-            </svg>
-            <span>Unduh semua</span>
-          </button>
-          <button id="open-folder" type="button" class="ghost">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            </svg>
-            <span>Buka folder</span>
-          </button>
-        </div>
-      </form>
+          <p id="form-error" class="error" hidden></p>
 
-      <section class="panel result" aria-live="polite">
-        <div class="result-head">
-          <h2>Hasil</h2>
-          <p id="status">Belum ada unduhan.</p>
+          <div class="actions">
+            <button id="submit" type="submit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M12 3v12" />
+                <path d="m7 11 5 5 5-5" />
+                <path d="M5 21h14" />
+              </svg>
+              <span>Unduh semua</span>
+            </button>
+            <button id="open-folder" type="button" class="ghost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+              <span>Buka folder</span>
+            </button>
+          </div>
+        </form>
+
+        <section class="panel result" aria-live="polite">
+          <div class="result-head">
+            <h2>Hasil</h2>
+            <p id="status">Belum ada unduhan.</p>
+          </div>
+          <div id="progress" class="progress" hidden>
+            <div id="progress-bar"></div>
+          </div>
+          <ul id="file-list" class="files"></ul>
+        </section>
+      </section>
+
+      <section id="view-instagram" class="platform-view" data-view="instagram" hidden>
+        <form id="ig-form" class="panel" novalidate>
+          <div class="ig-auth">
+            <p id="ig-auth-status" class="hint">Belum login Instagram.</p>
+            <div class="actions ig-auth-actions">
+              <button id="ig-login" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="5" />
+                  <circle cx="12" cy="12" r="4" />
+                  <circle cx="17.5" cy="6.5" r="1" />
+                </svg>
+                <span>Buka Instagram</span>
+              </button>
+              <button id="ig-logout" type="button" class="ghost" hidden>
+                <span>Logout</span>
+              </button>
+            </div>
+            <div class="ig-session-head">
+              <label class="ig-session-label" for="ig-sessionid">Tempel sessionid saja</label>
+              <button
+                id="ig-session-info"
+                type="button"
+                class="info-btn"
+                aria-expanded="false"
+                aria-controls="ig-session-help"
+                title="Cara ambil sessionid"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 10v6" />
+                  <circle cx="12" cy="7.5" r="0.8" fill="currentColor" stroke="none" />
+                </svg>
+                <span class="sr-only">Info sessionid</span>
+              </button>
+              <div id="ig-session-help" class="info-popover" hidden role="note">
+                <p>Di DevTools → Application → Cookies → klik baris <code>sessionid</code> → salin <strong>Cookie Value</strong> di bawah → tempel di sini.</p>
+                <p><code>refresh_token</code>, <code>csrftoken</code>, dll tidak perlu.</p>
+                <p>Di app desktop, tombol <strong>Buka Instagram</strong> bisa ambil cookie otomatis setelah login.</p>
+              </div>
+            </div>
+            <textarea
+              id="ig-sessionid"
+              class="ig-session"
+              rows="2"
+              spellcheck="false"
+              placeholder="Kolom Value dari cookie bernama sessionid (bukan refresh_token)"
+            ></textarea>
+            <div class="actions ig-auth-actions">
+              <button id="ig-save-session" type="button" class="ghost">
+                <span>Simpan session</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="url-block">
+            <label for="ig-url">URL Instagram</label>
+            <div class="field">
+              <span class="field-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l1.07-1.07a5 5 0 0 0-7.07-7.07L10.4 6.54" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54L5.4 11.54a5 5 0 0 0 7.07 7.07l1.13-1.13" />
+                </svg>
+              </span>
+              <input
+                id="ig-url"
+                name="ig-url"
+                type="url"
+                inputmode="url"
+                autocomplete="url"
+                placeholder="https://www.instagram.com/username/"
+                required
+              />
+            </div>
+            <p class="hint">Profil, /posts, /reels, post, atau reel. Carousel: semua slide ikut. Login wajib. Akun privat: akun session harus sudah follow.</p>
+          </div>
+
+          <label for="ig-dest">Folder unduhan</label>
+          <div class="folder-row">
+            <input id="ig-dest" name="ig-dest" type="text" spellcheck="false" />
+            <button id="ig-pick-folder" type="button" class="ghost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+              <span>Pilih folder</span>
+            </button>
+          </div>
+
+          <fieldset class="limits">
+            <legend>Rentang post</legend>
+            <p class="hint">Hitungan per <strong>post</strong>. Carousel: <code>1a</code> <code>1b</code> <code>1c</code>… tetap satu nomor post.</p>
+            <div class="limit-options" role="radiogroup" aria-label="Rentang post Instagram">
+              <label><input type="radio" name="ig-start" value="1" checked /> 1–100</label>
+              <label><input type="radio" name="ig-start" value="101" /> 101–200</label>
+              <label><input type="radio" name="ig-start" value="201" /> 201–300</label>
+              <label><input type="radio" name="ig-start" value="301" /> 301–400</label>
+              <label><input type="radio" name="ig-start" value="401" /> 401–500</label>
+              <div class="limit-manual">
+                <label><input type="radio" name="ig-start" value="custom" /> Manual</label>
+                <div class="range-manual" id="ig-range-manual" hidden role="group" aria-label="Rentang manual">
+                  <label for="ig-range-from">Dari</label>
+                  <input id="ig-range-from" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="1001" />
+                  <span class="range-sep" aria-hidden="true">–</span>
+                  <label for="ig-range-to">Sampai</label>
+                  <input id="ig-range-to" type="number" min="1" max="102000" step="1" inputmode="numeric" placeholder="2000" />
+                </div>
+              </div>
+            </div>
+          </fieldset>
+          <p id="ig-form-error" class="error" hidden></p>
+
+          <div class="actions">
+            <button id="ig-submit" type="submit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M12 3v12" />
+                <path d="m7 11 5 5 5-5" />
+                <path d="M5 21h14" />
+              </svg>
+              <span>Unduh Instagram</span>
+            </button>
+            <button id="ig-open-folder" type="button" class="ghost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+              <span>Buka folder</span>
+            </button>
+          </div>
+        </form>
+
+        <section class="panel result" aria-live="polite">
+          <div class="result-head">
+            <h2>Hasil Instagram</h2>
+            <p id="ig-status">Belum ada unduhan.</p>
+          </div>
+          <div id="ig-progress" class="progress" hidden>
+            <div id="ig-progress-bar"></div>
+          </div>
+          <ul id="ig-file-list" class="files"></ul>
+        </section>
+      </section>
+
+      <section id="view-tiktok" class="platform-view" data-view="tiktok" hidden>
+        <div class="panel soon-panel">
+          <h2>TikTok</h2>
+          <p class="lede">Segera. Belum bisa unduh dari sini.</p>
         </div>
-        <div id="progress" class="progress" hidden>
-          <div id="progress-bar"></div>
+      </section>
+
+      <section id="view-changelog" class="platform-view" hidden>
+        <div class="panel changelog">
+          <button id="close-changelog" type="button" class="text-btn">Kembali</button>
+          <h2>Changelog</h2>
+          <ol class="changelog-list">
+            <li>
+              <p class="changelog-ver">1.0.5 <time datetime="2026-11-10">10 Nov 2026</time></p>
+              <p>Unduhan Instagram: login sessionid, carousel lengkap sebagai 1a/1b/1c, rentang per post, preview video pakai thumb.</p>
+            </li>
+            <li>
+              <p class="changelog-ver">1.0.4 <time datetime="2026-11-03">3 Nov 2026</time></p>
+              <p>Rilis installer baru.</p>
+            </li>
+            <li>
+              <p class="changelog-ver">1.0.3 <time datetime="2026-11-03">3 Nov 2026</time></p>
+              <p>Nomor versi tampil di aplikasi. Update mengunduh installer Mac atau Windows dari rilis GitHub.</p>
+            </li>
+            <li>
+              <p class="changelog-ver">1.0.2 <time datetime="2026-11-03">3 Nov 2026</time></p>
+              <p>Satu URL pin tetap mengambil media terkait. Aplikasi bisa memeriksa rilis GitHub untuk installer yang lebih baru.</p>
+            </li>
+            <li>
+              <p class="changelog-ver">1.0.1 <time datetime="2026-11-03">3 Nov 2026</time></p>
+              <p>Build Mac ditandatangani. Folder per board untuk profil, rentang manual, dan branding GEMADIPADA.</p>
+            </li>
+          </ol>
         </div>
-        <ul id="file-list" class="files"></ul>
       </section>
     </main>
-    <script src="/static/app.js?v=update2" type="module"></script>
+    <script src="/static/app.js?v=ig-info1" type="module"></script>
   </body>
 </html>
