@@ -67,25 +67,84 @@ function standalonePython() {
 let backend = null;
 let startedBackend = false;
 
-function health() {
+function backendHealth() {
   return new Promise((resolve) => {
     const req = http.get(`http://${HOST}:${PORT}/health`, (res) => {
-      resolve(res.statusCode === 200);
+      let raw = "";
+      res.on("data", (chunk) => {
+        raw += chunk;
+      });
+      res.on("end", () => {
+        if (res.statusCode !== 200) {
+          resolve({ ok: false });
+          return;
+        }
+        try {
+          const data = JSON.parse(raw || "{}");
+          resolve({ ok: true, version: String(data.version || "") });
+        } catch {
+          resolve({ ok: true, version: "" });
+        }
+      });
     });
-    req.on("error", () => resolve(false));
+    req.on("error", () => resolve({ ok: false }));
     req.setTimeout(800, () => {
       req.destroy();
-      resolve(false);
+      resolve({ ok: false });
     });
   });
 }
 
+function health() {
+  return backendHealth().then((info) => info.ok);
+}
+
 async function waitForHealth(tries = 40) {
+  const expected = app.getVersion();
   for (let i = 0; i < tries; i += 1) {
-    if (await health()) return true;
+    const info = await backendHealth();
+    if (info.ok && (!expected || !info.version || info.version === expected)) {
+      return true;
+    }
     await new Promise((done) => setTimeout(done, 250));
   }
   return false;
+}
+
+async function freePortIfStale(expectedVersion) {
+  const info = await backendHealth();
+  if (!info.ok) return;
+  if (info.version && info.version === expectedVersion) return;
+  // Port 8765 dipakai backend lama / proses lain → app baru tampil versi lama.
+  try {
+    if (IS_WIN) {
+      await execFileAsync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-Command",
+          `Get-NetTCPConnection -LocalPort ${PORT} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }`,
+        ],
+        { windowsHide: true }
+      );
+    } else {
+      const { stdout } = await execFileAsync("lsof", ["-ti", `tcp:${PORT}`]);
+      const pids = String(stdout || "")
+        .split(/\s+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      for (const pid of pids) {
+        try {
+          process.kill(Number(pid), "SIGTERM");
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } catch {
+    // nothing listening / no permission
+  }
+  await new Promise((done) => setTimeout(done, 400));
 }
 
 function pythonCandidates() {
@@ -370,7 +429,13 @@ function stopBackend() {
 }
 
 async function ensureBackend(onStatus = () => {}) {
-  if (await health()) return;
+  const expected = app.getVersion();
+  const existing = await backendHealth();
+  if (existing.ok && existing.version === expected) return;
+  if (existing.ok) {
+    onStatus("Mengganti backend lama...");
+    await freePortIfStale(expected);
+  }
   const python = await ensureVenv(onStatus);
   onStatus("Menyalakan app...");
   startBackend(python);
