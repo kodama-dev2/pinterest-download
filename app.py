@@ -357,9 +357,11 @@ def version():
 @app.get("/api/update")
 def update_info():
     try:
-        return check_update()
+        return check_update(force=True)
+    except ValueError as exc:
+        raise HTTPException(502, str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(502, f"Gagal cek pembaruan: {exc}") from exc
+        raise HTTPException(502, "Gagal cek pembaruan dari GitHub.") from exc
 
 
 @app.post("/api/update/download")
