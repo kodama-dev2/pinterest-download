@@ -98,12 +98,12 @@ function syncRangeUi(start, end) {
   if (radio) radio.checked = true;
   rangeFrom.value = String(start || "");
   rangeTo.value = String(end || "");
-  rangeManual.hidden = true;
+  rangeManual.hidden = radio?.value !== "custom";
   notePinRange();
 }
 
 function bindRangePopover({ formEl, name, box, from, to, onCommit }) {
-  const wrap = box?.closest(".limit-manual");
+  const wrap = formEl?.querySelector(".limit-manual");
   const manualLabel = wrap?.querySelector("label");
   if (!formEl || !box || !from || !to || !wrap || !manualLabel) return () => {};
 
@@ -119,21 +119,9 @@ function bindRangePopover({ formEl, name, box, from, to, onCommit }) {
     };
   }
 
-  function place() {
-    box.hidden = false;
-    box.style.left = "0";
-    box.style.right = "auto";
-    const panel = box.closest(".panel");
-    if (!panel) return;
-    const pop = box.getBoundingClientRect();
-    const bounds = panel.getBoundingClientRect();
-    if (pop.right > bounds.right - 8) {
-      box.style.left = "auto";
-      box.style.right = "0";
-    }
-  }
-
   function openDraft() {
+    box.style.left = "";
+    box.style.right = "";
     if (committed.mode === "custom") {
       from.value = committed.from;
       to.value = committed.to;
@@ -141,7 +129,7 @@ function bindRangePopover({ formEl, name, box, from, to, onCommit }) {
       from.value = "1001";
       to.value = "2000";
     }
-    place();
+    box.hidden = false;
     from.focus();
     try {
       from.select();
@@ -157,7 +145,7 @@ function bindRangePopover({ formEl, name, box, from, to, onCommit }) {
     if (radio) radio.checked = true;
     from.value = committed.from;
     to.value = committed.to;
-    box.hidden = true;
+    box.hidden = radio?.value !== "custom";
     suspend = false;
   }
 
@@ -168,14 +156,17 @@ function bindRangePopover({ formEl, name, box, from, to, onCommit }) {
     suspend = true;
     const custom = formEl.querySelector(`input[name="${name}"][value="custom"]`);
     if (custom) custom.checked = true;
-    box.hidden = true;
+    box.hidden = false;
     note();
     suspend = false;
     onCommit({ start, end });
   }
 
   manualLabel.addEventListener("click", () => {
-    if (!box.hidden) return;
+    if (!box.hidden) {
+      from.focus();
+      return;
+    }
     openDraft();
   });
 
@@ -204,15 +195,8 @@ function bindRangePopover({ formEl, name, box, from, to, onCommit }) {
   box.addEventListener("focusout", (event) => {
     if (box.hidden || suspend) return;
     const next = event.relatedTarget;
-    if (!next || box.contains(next) || wrap.contains(next)) return;
-    cancel();
-  });
-
-  document.addEventListener("pointerdown", (event) => {
-    if (box.hidden || suspend) return;
-    const target = event.target;
-    if (!(target instanceof Node) || box.contains(target) || wrap.contains(target)) return;
-    cancel();
+    if (next && (box.contains(next) || wrap.contains(next))) return;
+    commit();
   });
 
   note();
@@ -315,14 +299,27 @@ function closeJob(id) {
   paintJob(activeJob());
 }
 
+function mediaPreviewUrl(file, dest) {
+  const root = file.dest || dest || destValue();
+  const path = String(file.path || "")
+    .split("/")
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join("/");
+  return `/api/preview/${path}?dest=${encodeURIComponent(root)}`;
+}
+
 function addFile(job, file, append = true) {
   if (append) job.files.push(file);
   if (job.id !== activeId) return;
   const item = document.createElement("li");
   const img = document.createElement("img");
-  const dest = encodeURIComponent(job.dest || destValue());
-  img.src = `/api/file/${encodeURI(file.path)}?dest=${dest}`;
+  img.src = mediaPreviewUrl(file, job.dest || destValue());
   img.alt = file.name;
+  img.addEventListener("error", () => {
+    img.classList.add("thumb-missing");
+    img.removeAttribute("src");
+  });
   const meta = document.createElement("div");
   const name = document.createElement("p");
   name.textContent = `${file.number || job.count}. ${file.name}`;
@@ -615,14 +612,28 @@ const closeChangelog = document.querySelector("#close-changelog");
 
 const igForm = document.querySelector("#ig-form");
 const igUrl = document.querySelector("#ig-url");
+const igQueueBtn = document.querySelector("#ig-queue-btn");
+const igQueuePop = document.querySelector("#ig-queue-pop");
+const igQueueText = document.querySelector("#ig-queue-text");
+const igQueueNote = document.querySelector("#ig-queue-note");
+const igQueueCount = document.querySelector("#ig-queue-count");
 const igDest = document.querySelector("#ig-dest");
+const igDestLabel = document.querySelector("#ig-dest-label");
 const igPickFolder = document.querySelector("#ig-pick-folder");
 const igSubmit = document.querySelector("#ig-submit");
+const igStop = document.querySelector("#ig-stop");
+const igRetry = document.querySelector("#ig-retry");
 const igOpenFolder = document.querySelector("#ig-open-folder");
 const igFormError = document.querySelector("#ig-form-error");
 const igStatus = document.querySelector("#ig-status");
 const igProgress = document.querySelector("#ig-progress");
 const igFileList = document.querySelector("#ig-file-list");
+const igResultNav = document.querySelector("#ig-result-nav");
+const igProfileTabs = document.querySelector("#ig-profile-tabs");
+const igFilePager = document.querySelector("#ig-file-pager");
+const igPagePrev = document.querySelector("#ig-page-prev");
+const igPageNext = document.querySelector("#ig-page-next");
+const igPageLabel = document.querySelector("#ig-page-label");
 const igRangeManual = document.querySelector("#ig-range-manual");
 const igRangeFrom = document.querySelector("#ig-range-from");
 const igRangeTo = document.querySelector("#ig-range-to");
@@ -647,9 +658,18 @@ const COPY = {
 
 let currentPlatform = "pinterest";
 let igBusy = false;
+let igQueueMode = false;
 let igCount = 0;
 let igFolder = "";
 let igFiles = [];
+let igQueue = [];
+let igQueueSeq = 1;
+let igSavedDest = "";
+let igAbort = null;
+let igStopRequested = false;
+let igActiveProfileId = "";
+let igFilePage = 1;
+const IG_PAGE_SIZE = 25;
 
 function selectedIgRange() {
   const checked = igForm?.querySelector("input[name='ig-start']:checked");
@@ -673,6 +693,145 @@ function syncIgRangeUi(start, end) {
   if (igRangeTo) igRangeTo.value = String(end || "");
   if (igRangeManual) igRangeManual.hidden = radio?.value !== "custom";
 }
+
+function normalizeIgUrl(raw) {
+  let value = String(raw || "").trim();
+  if (!value) return "";
+  if (!/^https?:\/\//i.test(value)) value = `https://${value}`;
+  return value.replace(/\/+$/, "") || value;
+}
+
+function looksLikeIgUrl(value) {
+  try {
+    const host = new URL(value).hostname.replace(/^www\./i, "").toLowerCase();
+    return host === "instagram.com" || host.endsWith(".instagram.com");
+  } catch {
+    return false;
+  }
+}
+
+function displayIgUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.hostname}${parsed.pathname}`.replace(/\/+$/, "");
+  } catch {
+    return url;
+  }
+}
+
+function queueKey(url) {
+  return normalizeIgUrl(url).toLowerCase();
+}
+
+function parseIgUrlList(text) {
+  const seen = new Set();
+  const urls = [];
+  const chunks = String(text || "")
+    .split(/[\r\n]+/)
+    .flatMap((line) => line.split(/[\s,;]+/))
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (const chunk of chunks) {
+    const url = normalizeIgUrl(chunk);
+    if (!url || !looksLikeIgUrl(url)) continue;
+    const key = queueKey(url);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    urls.push(url);
+  }
+  return urls;
+}
+
+function filledIgQueueUrls() {
+  return parseIgUrlList(igQueueText?.value || "");
+}
+
+function collectDownloadUrls() {
+  return parseIgUrlList(`${igUrl?.value || ""}\n${igQueueText?.value || ""}`);
+}
+
+function updateIgQueueCount() {
+  const total = filledIgQueueUrls().length;
+  if (igQueueCount) {
+    igQueueCount.textContent = String(total);
+    igQueueCount.hidden = total === 0;
+  }
+  if (igQueueNote && !igBusy) {
+    igQueueNote.textContent = total
+      ? `${total} URL. Enter = baris baru. Unduh jalan satu per satu.`
+      : "Tempel banyak URL di sini. Enter = baris baru. Unduh jalan satu per satu.";
+  }
+}
+
+function writeIgQueueText(urls) {
+  if (igQueueText) igQueueText.value = urls.join("\n");
+  updateIgQueueCount();
+}
+
+function setIgQueueOpen(open) {
+  if (!igQueuePop || !igQueueBtn) return;
+  igQueuePop.hidden = !open;
+  igQueueBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) {
+    updateIgQueueCount();
+    igQueueText?.focus();
+  }
+}
+
+function renderIgQueue() {
+  updateIgQueueCount();
+  if (!igQueueNote || !igBusy) return;
+  const running = igQueue.find((item) => item.status === "running");
+  const done = igQueue.filter((item) => item.status === "done").length;
+  const total = igQueue.filter((item) => item.url).length;
+  if (running) {
+    igQueueNote.textContent = `Mengunduh ${done + 1}/${total} · ${displayIgUrl(running.url)}`;
+  } else if (total) {
+    const failed = igQueue.filter((item) => item.status === "error").length;
+    igQueueNote.textContent = failed
+      ? `${done}/${total} URL selesai, ${failed} gagal.`
+      : `${done}/${total} URL selesai.`;
+  }
+}
+
+function buildIgQueueItems() {
+  return collectDownloadUrls().map((url) => {
+    const item = {
+      id: `igq-${igQueueSeq}`,
+      url,
+      status: "queued",
+      note: "",
+      files: [],
+    };
+    igQueueSeq += 1;
+    return item;
+  });
+}
+
+igQueueBtn?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (igQueuePop?.hidden) setIgQueueOpen(true);
+  else setIgQueueOpen(false);
+});
+
+igQueuePop?.addEventListener("click", (event) => {
+  event.stopPropagation();
+});
+
+igQueueText?.addEventListener("input", () => {
+  updateIgQueueCount();
+});
+
+igUrl?.addEventListener("paste", (event) => {
+  const text = event.clipboardData?.getData("text") || "";
+  if (!/[\r\n]/.test(text)) return;
+  event.preventDefault();
+  writeIgQueueText(parseIgUrlList(`${igQueueText?.value || ""}\n${text}`));
+  setIgQueueOpen(true);
+});
+
+updateIgQueueCount();
 
 function hideChangelog() {
   if (viewChangelog) viewChangelog.hidden = true;
@@ -752,6 +911,25 @@ async function refreshIgAuth() {
   }
 }
 
+function igDestFolder() {
+  return (igSavedDest || igDest?.value || destValue()).trim();
+}
+
+function showCurrentIgProfile(url) {
+  if (igUrl) igUrl.value = url;
+  if (igDest) igDest.value = url;
+  if (igDestLabel) igDestLabel.textContent = "Profil yang diunduh";
+}
+
+function restoreIgDest() {
+  if (igDest && igSavedDest) igDest.value = igSavedDest;
+  if (igDestLabel) igDestLabel.textContent = "Folder unduhan";
+}
+
+function failedIgCount() {
+  return igQueue.filter((item) => item.status === "error").length;
+}
+
 function paintIg() {
   if (igFormError) {
     igFormError.hidden = !igFormError.textContent;
@@ -763,7 +941,11 @@ function paintIg() {
     igProgress.classList.toggle("done", !igBusy && igCount > 0);
   }
   if (igSubmit) igSubmit.disabled = igBusy;
-  if (igUrl) igUrl.disabled = igBusy;
+  if (igStop) igStop.hidden = !igBusy;
+  if (igRetry) igRetry.hidden = igBusy || failedIgCount() === 0;
+  if (igPickFolder) igPickFolder.disabled = igBusy;
+  if (igUrl) igUrl.readOnly = igBusy;
+  if (igDest) igDest.readOnly = igBusy;
 }
 
 function isVideoFile(file) {
@@ -771,38 +953,121 @@ function isVideoFile(file) {
   return file?.kind === "video" || /\.(mp4|mov|m4v|webm)(?:$|\?)/i.test(name);
 }
 
-function addIgFile(file) {
-  igFiles.push(file);
-  if (!igFileList) return;
-  const item = document.createElement("li");
-  const img = document.createElement("img");
-  const dest = encodeURIComponent(igDest?.value.trim() || destValue());
-  const video = isVideoFile(file);
-  if (video && file.thumb) {
-    img.src = file.thumb;
-    item.classList.add("is-video");
-  } else if (!video) {
-    img.src = `/api/file/${encodeURI(file.path)}?dest=${dest}`;
-  } else {
-    // Jangan pakai .mp4 sebagai src img.
-    img.alt = file.name;
-    img.classList.add("thumb-missing");
-    item.classList.add("is-video");
+function isAudioFile(file) {
+  const name = `${file?.name || ""} ${file?.path || ""}`.toLowerCase();
+  return file?.kind === "audio" || /\.(m4a|mp3|aac|wav|ogg)(?:$|\?)/i.test(name);
+}
+
+function igFileTotal() {
+  return igQueue.reduce((sum, item) => sum + (item.files?.length || 0), 0);
+}
+
+function igProfileName(item) {
+  try {
+    const parts = new URL(item.url).pathname.split("/").filter(Boolean);
+    return parts[0] || displayIgUrl(item.url);
+  } catch {
+    return displayIgUrl(item.url);
   }
+}
+
+function igVisibleProfiles() {
+  return igQueue.filter((item) => item.url && ((item.files && item.files.length) || item.status === "running"));
+}
+
+function igActiveItem() {
+  return (
+    igQueue.find((item) => item.id === igActiveProfileId) ||
+    igVisibleProfiles()[0] ||
+    null
+  );
+}
+
+function appendIgFileRow(file) {
+  if (!igFileList) return;
+  const row = document.createElement("li");
+  const img = document.createElement("img");
+  const dest = igDestFolder();
+  const video = isVideoFile(file);
+  const audio = isAudioFile(file);
   img.alt = file.name;
   img.loading = "lazy";
   img.referrerPolicy = "no-referrer";
+  if (audio) {
+    img.classList.add("thumb-missing");
+    row.classList.add("is-audio");
+  } else {
+    img.src = mediaPreviewUrl(file, dest);
+    img.addEventListener("error", () => {
+      img.classList.add("thumb-missing");
+      img.removeAttribute("src");
+    });
+    if (video) row.classList.add("is-video");
+  }
   const meta = document.createElement("div");
   const name = document.createElement("p");
-  name.textContent = `${file.label || file.number || igCount}. ${file.name}`;
+  name.textContent = `${file.label || file.number || ""}. ${file.name}`.replace(/^\. /, "");
   const path = document.createElement("span");
   path.textContent = file.path;
   meta.append(name, path);
-  item.append(img, meta);
-  igFileList.append(item);
+  row.append(img, meta);
+  igFileList.append(row);
 }
 
-function applyIgEvent(data) {
+function renderIgProfileTabs() {
+  if (!igResultNav || !igProfileTabs) return;
+  const profiles = igVisibleProfiles();
+  igResultNav.hidden = profiles.length < 2;
+  igProfileTabs.replaceChildren();
+  profiles.forEach((item) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "tab";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(item.id === igActiveProfileId));
+    if (item.id === igActiveProfileId) tab.classList.add("active");
+    if (item.status === "running") tab.classList.add("busy");
+    const name = document.createElement("span");
+    name.className = "tab-name";
+    name.textContent = igProfileName(item);
+    const count = document.createElement("span");
+    count.className = "tab-count";
+    count.textContent = String(item.files?.length || 0);
+    tab.append(name, count);
+    tab.addEventListener("click", () => {
+      igActiveProfileId = item.id;
+      igFilePage = 1;
+      renderIgResults();
+    });
+    igProfileTabs.append(tab);
+  });
+}
+
+function renderIgResults({ follow = false } = {}) {
+  const item = igActiveItem();
+  if (item && !igActiveProfileId) igActiveProfileId = item.id;
+  const files = item?.files || [];
+  const pages = Math.max(1, Math.ceil(files.length / IG_PAGE_SIZE) || 1);
+  const previousCount = Math.max(0, files.length - (follow ? 1 : 0));
+  const wasLastPage = igFilePage >= Math.max(1, Math.ceil(previousCount / IG_PAGE_SIZE) || 1);
+  if (follow && wasLastPage) igFilePage = pages;
+  if (igFilePage > pages) igFilePage = pages;
+  if (igFilePage < 1) igFilePage = 1;
+  renderIgProfileTabs();
+  if (igFileList) {
+    igFileList.replaceChildren();
+    const start = (igFilePage - 1) * IG_PAGE_SIZE;
+    files.slice(start, start + IG_PAGE_SIZE).forEach((file) => appendIgFileRow(file));
+  }
+  if (igFilePager) {
+    igFilePager.hidden = files.length <= IG_PAGE_SIZE;
+    if (igPageLabel) igPageLabel.textContent = `${igFilePage} / ${pages}`;
+    if (igPagePrev) igPagePrev.disabled = igFilePage <= 1;
+    if (igPageNext) igPageNext.disabled = igFilePage >= pages;
+  }
+}
+
+function applyIgEvent(data, item) {
   if (data.type === "status") {
     if (igStatus) {
       igStatus.dataset.message = data.message;
@@ -810,18 +1075,23 @@ function applyIgEvent(data) {
     }
   }
   if (data.type === "file") {
-    igCount += 1;
+    if (item) {
+      if (!item.files) item.files = [];
+      item.files.push(data);
+    }
+    igCount = igFileTotal();
     if (igStatus) {
       const posts = data.posts_taken;
       const limit = data.posts_limit;
       const postNo = data.post || data.number;
+      const profile = item ? igProfileName(item) : "";
       igStatus.dataset.message =
         posts && limit
-          ? `Post ${postNo} dari rentang (${posts}/${limit} post) · ${igCount} file`
+          ? `${profile} · post ${postNo} (${posts}/${limit}) · ${igCount} file`
           : `${igCount} file tersimpan...`;
       igStatus.textContent = igStatus.dataset.message;
     }
-    addIgFile(data);
+    renderIgResults({ follow: !item || item.id === igActiveProfileId });
   }
   if (data.type === "error" && igFormError) {
     igFormError.textContent = data.message;
@@ -829,6 +1099,10 @@ function applyIgEvent(data) {
   }
   if (data.type === "done") {
     igFolder = data.folder || "";
+    if (igQueueMode) {
+      paintIg();
+      return;
+    }
     if (data.count > 0 && igStatus) {
       const posts = data.posts || 0;
       const label = data.label || "";
@@ -862,14 +1136,23 @@ igSessionInfo?.addEventListener("click", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-  if (!igSessionHelp || igSessionHelp.hidden) return;
   const target = event.target;
-  if (igSessionHelp.contains(target) || igSessionInfo?.contains(target)) return;
-  setIgSessionHelp(false);
+  if (igSessionHelp && !igSessionHelp.hidden) {
+    if (!igSessionHelp.contains(target) && !igSessionInfo?.contains(target)) {
+      setIgSessionHelp(false);
+    }
+  }
+  if (igQueuePop && !igQueuePop.hidden) {
+    if (!igQueuePop.contains(target) && !igQueueBtn?.contains(target) && !igUrl?.contains(target)) {
+      setIgQueueOpen(false);
+    }
+  }
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") setIgSessionHelp(false);
+  if (event.key !== "Escape") return;
+  setIgSessionHelp(false);
+  setIgQueueOpen(false);
 });
 
 igLogin?.addEventListener("click", async () => {
@@ -953,60 +1236,153 @@ igLogout?.addEventListener("click", async () => {
   await refreshIgAuth();
 });
 
-igForm?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (igBusy) return;
-  const url = igUrl?.value.trim() || "";
-  const range = selectedIgRange();
+function isAbortError(error) {
+  return error?.name === "AbortError" || /aborted|The user aborted/i.test(error?.message || "");
+}
+
+async function downloadIgItem(item, settings, index, total) {
+  item.status = "running";
+  item.note = "";
+  item.files = [];
+  igActiveProfileId = item.id;
+  igFilePage = 1;
+  igCount = igFileTotal();
+  showCurrentIgProfile(item.url);
+  renderIgQueue();
+  renderIgResults();
+  paintIg();
+  if (igStatus) {
+    igStatus.dataset.message = `Antrian ${index}/${total} · ${displayIgUrl(item.url)}`;
+    igStatus.textContent = igStatus.dataset.message;
+  }
+  const response = await fetch("/api/instagram/download", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: item.url,
+      dest: settings.dest,
+      start: settings.start,
+      end: settings.end,
+    }),
+    signal: igAbort?.signal,
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(typeof body.detail === "string" ? body.detail : "Gagal memulai unduhan Instagram.");
+  }
+  let lastDone = null;
+  await readEvents(response, (data) => {
+    if (data.type === "status" && igStatus) {
+      applyIgEvent({
+        ...data,
+        message: `Antrian ${index}/${total} · ${data.message}`,
+      });
+      return;
+    }
+    if (data.type === "done") {
+      lastDone = data;
+    }
+    if (data.type === "error") {
+      item.status = "error";
+      item.note = data.message || "Gagal";
+      renderIgQueue();
+    }
+    applyIgEvent(data, item);
+  });
+  if (item.status === "running") {
+    if (lastDone?.stopped) {
+      item.status = "error";
+      item.note = "Dihentikan";
+    } else {
+      const count = lastDone?.count || 0;
+      item.status = count > 0 ? "done" : "error";
+      item.note = count > 0 ? `${count} file` : "Kosong";
+    }
+    renderIgQueue();
+  }
+}
+
+async function runIgQueue(settings, { resetFiles = true } = {}) {
+  igBusy = true;
+  igQueueMode = true;
+  igStopRequested = false;
+  igAbort = new AbortController();
+  igSavedDest = settings.dest;
+  destInput.value = settings.dest;
+  if (resetFiles) {
+    igCount = 0;
+    igFiles = [];
+    igFolder = "";
+    igActiveProfileId = "";
+    igFilePage = 1;
+    if (igFileList) igFileList.replaceChildren();
+    renderIgResults();
+  }
   if (igFormError) {
     igFormError.textContent = "";
     igFormError.hidden = true;
   }
-  if (!url) {
-    if (igFormError) {
-      igFormError.textContent = "URL Instagram wajib diisi.";
-      igFormError.hidden = false;
-    }
-    return;
-  }
-  if (!Number.isInteger(range.start) || !Number.isInteger(range.end) || range.start < 1 || range.end < range.start) {
-    if (igFormError) {
-      igFormError.textContent = "Isi rentang manual, misalnya 1001–2000.";
-      igFormError.hidden = false;
-    }
-    return;
-  }
-
-  igBusy = true;
-  igCount = 0;
-  igFiles = [];
-  igFolder = "";
-  if (igFileList) igFileList.replaceChildren();
   if (igStatus) {
     igStatus.dataset.message = "Mengambil daftar file dari Instagram...";
     igStatus.textContent = igStatus.dataset.message;
   }
+  const pending = igQueue.filter((entry) => entry.status === "queued" && entry.url.trim());
+  if (pending.length > 1) setIgQueueOpen(true);
   paintIg();
 
+  let failed = 0;
+  let index = igQueue.filter((entry) => entry.status === "done").length;
+  const total = igQueue.filter((entry) => entry.url.trim()).length;
   try {
-    const settings = await persistSettingsFromIg(range);
-    if (igDest) igDest.value = settings.dest;
-    destInput.value = settings.dest;
-    const response = await fetch("/api/instagram/download", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url,
-        dest: settings.dest,
-        start: settings.start,
-        end: settings.end,
-      }),
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(typeof body.detail === "string" ? body.detail : "Gagal memulai unduhan Instagram.");
+    while (!igStopRequested) {
+      const item = igQueue.find((entry) => entry.status === "queued" && entry.url.trim());
+      if (!item) break;
+      index += 1;
+      try {
+        await downloadIgItem(item, settings, index, total);
+        if (item.status === "error") failed += 1;
+      } catch (error) {
+        if (isAbortError(error) || igStopRequested) {
+          item.status = "error";
+          item.note = "Dihentikan";
+          renderIgQueue();
+          break;
+        }
+        failed += 1;
+        item.status = "error";
+        item.note =
+          error?.message === "Failed to fetch" ? "Backend belum jalan" : error.message || "Gagal";
+        renderIgQueue();
+        if (error?.message === "Failed to fetch") throw error;
+      }
     }
-    await readEvents(response, applyIgEvent);
+    if (igStopRequested) {
+      igQueue
+        .filter((entry) => entry.status === "queued")
+        .forEach((entry) => {
+          entry.status = "error";
+          entry.note = "Dihentikan";
+        });
+      renderIgQueue();
+    }
+    const ok = igQueue.filter((entry) => entry.status === "done").length;
+    failed = failedIgCount();
+    if (igStatus) {
+      if (igStopRequested) {
+        igStatus.dataset.message = igCount
+          ? `Dihentikan · ${ok}/${total} URL · ${igCount} file.`
+          : "Unduhan dihentikan.";
+      } else if (igCount) {
+        igStatus.dataset.message = `${ok}/${total} URL · ${igCount} file di ${igFolder || igSavedDest}.`;
+      } else {
+        igStatus.dataset.message = "Tidak ada file yang bisa diunduh dari antrian ini.";
+      }
+      igStatus.textContent = igStatus.dataset.message;
+    }
+    if (failed && !igStopRequested && igFormError) {
+      igFormError.textContent = `${failed} URL gagal. Tekan Ulangi gagal.`;
+      igFormError.hidden = false;
+    }
   } catch (error) {
     const message =
       error?.message === "Failed to fetch"
@@ -1022,15 +1398,70 @@ igForm?.addEventListener("submit", async (event) => {
     }
   } finally {
     igBusy = false;
+    igQueueMode = false;
+    igAbort = null;
+    restoreIgDest();
+    igSavedDest = "";
     paintIg();
+    renderIgQueue();
   }
+}
+
+igForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (igBusy) return;
+  const range = selectedIgRange();
+  if (igFormError) {
+    igFormError.textContent = "";
+    igFormError.hidden = true;
+  }
+  igQueue = buildIgQueueItems();
+  if (!igQueue.length) {
+    if (igFormError) {
+      igFormError.textContent = "URL Instagram wajib diisi.";
+      igFormError.hidden = false;
+    }
+    return;
+  }
+  if (!Number.isInteger(range.start) || !Number.isInteger(range.end) || range.start < 1 || range.end < range.start) {
+    if (igFormError) {
+      igFormError.textContent = "Isi rentang manual, misalnya 1001–2000.";
+      igFormError.hidden = false;
+    }
+    return;
+  }
+  const settings = await persistSettingsFromIg(range);
+  await runIgQueue(settings, { resetFiles: true });
+});
+
+igStop?.addEventListener("click", () => {
+  if (!igBusy) return;
+  igStopRequested = true;
+  igAbort?.abort();
+});
+
+igRetry?.addEventListener("click", async () => {
+  if (igBusy) return;
+  const failed = igQueue.filter((item) => item.status === "error" && item.url.trim());
+  if (!failed.length) return;
+  failed.forEach((item) => {
+    item.status = "queued";
+    item.note = "";
+  });
+  const range = selectedIgRange();
+  if (igFormError) {
+    igFormError.textContent = "";
+    igFormError.hidden = true;
+  }
+  const settings = await persistSettingsFromIg(range);
+  await runIgQueue(settings, { resetFiles: false });
 });
 
 async function persistSettingsFromIg(range) {
   const response = await fetch("/api/settings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dest: (igDest?.value || destValue()).trim(), ...range }),
+    body: JSON.stringify({ dest: igDestFolder(), ...range }),
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -1041,7 +1472,7 @@ async function persistSettingsFromIg(range) {
 
 igPickFolder?.addEventListener("click", async () => {
   try {
-    const folder = await chooseFolder(igDest?.value || destValue());
+    const folder = await chooseFolder(igDestFolder() || destValue());
     if (!folder) return;
     if (igDest) igDest.value = folder;
     destInput.value = folder;
@@ -1069,8 +1500,18 @@ igOpenFolder?.addEventListener("click", async () => {
   await fetch("/api/open-folder", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dest: (igDest?.value || destValue()).trim(), folder: igFolder }),
+    body: JSON.stringify({ dest: igDestFolder(), folder: igFolder }),
   });
+});
+
+igPagePrev?.addEventListener("click", () => {
+  igFilePage -= 1;
+  renderIgResults();
+});
+
+igPageNext?.addEventListener("click", () => {
+  igFilePage += 1;
+  renderIgResults();
 });
 
 setPlatform("pinterest");

@@ -7,14 +7,20 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from downloader import download_pinterest, is_pinterest_url, list_downloads, resolve_download
+from downloader import (
+    download_pinterest,
+    is_pinterest_url,
+    list_downloads,
+    preview_download,
+    resolve_download,
+)
 from ig_cookies import (
     clear_cookies,
     status as ig_status,
@@ -87,7 +93,22 @@ def files(dest: str | None = None):
     return {"files": list_downloads(dest)}
 
 
-@app.get("/api/file/{rel_path:path}")
+def _media_response(path: Path) -> FileResponse:
+    suffix = path.suffix.lower()
+    types = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".mp4": "video/mp4",
+        ".mov": "video/quicktime",
+        ".webm": "video/webm",
+    }
+    return FileResponse(path, media_type=types.get(suffix))
+
+
+@app.api_route("/api/file/{rel_path:path}", methods=["GET", "HEAD"])
 def file_preview(rel_path: str, dest: str | None = None):
     try:
         path = resolve_download(rel_path, dest)
@@ -95,7 +116,18 @@ def file_preview(rel_path: str, dest: str | None = None):
         raise HTTPException(400, str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(404, "File tidak ditemukan") from exc
-    return FileResponse(path)
+    return _media_response(path)
+
+
+@app.api_route("/api/preview/{rel_path:path}", methods=["GET", "HEAD"])
+def media_preview(rel_path: str, dest: str | None = None):
+    try:
+        path = preview_download(rel_path, dest)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "File tidak ditemukan") from exc
+    return _media_response(path)
 
 
 def _pick_folder_native(start: str | None = None) -> str | None:
@@ -262,12 +294,14 @@ def instagram_logout():
 
 
 @app.post("/api/instagram/download")
-def start_instagram_download(body: DownloadRequest):
+async def start_instagram_download(body: DownloadRequest, request: Request):
     url = body.url.strip()
     if not is_instagram_url(url):
         raise HTTPException(400, "URL harus dari instagram.com")
 
     events: Queue = Queue()
+    cancel = threading.Event()
+    wait = object()
 
     def emit(event: dict) -> None:
         events.put(event)
@@ -281,6 +315,7 @@ def start_instagram_download(body: DownloadRequest):
                 start=body.start,
                 end=body.end,
                 limit=body.limit,
+                cancel=cancel,
             )
         except Exception as exc:
             events.put({"type": "error", "message": str(exc)})
@@ -288,11 +323,21 @@ def start_instagram_download(body: DownloadRequest):
         finally:
             events.put(None)
 
+    def next_event():
+        try:
+            return events.get(timeout=0.4)
+        except Empty:
+            return wait
+
     async def stream():
         loop = asyncio.get_running_loop()
         threading.Thread(target=worker, daemon=True).start()
         while True:
-            item = await loop.run_in_executor(None, events.get)
+            if await request.is_disconnected():
+                cancel.set()
+            item = await loop.run_in_executor(None, next_event)
+            if item is wait:
+                continue
             if item is None:
                 break
             yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"

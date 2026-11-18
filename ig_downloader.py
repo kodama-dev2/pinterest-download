@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -8,11 +9,200 @@ from urllib.parse import urlparse
 
 from gallery_dl import config, exception as gdl_exception, extractor as gdl_extractor, job
 
+from downloader import _http_save, _video_thumb_path, ffmpeg_path
 from ig_cookies import SESSION_DEAD, clear_cookies, cookies_path, status as cookie_status
 from settings import DOWNLOADS, default_settings, load_settings, normalize_dest, normalize_range, range_label
 
 DOWNLOAD_LOCK = threading.Lock()
 EventCallback = Callable[[dict], None]
+VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+AUDIO_EXTS = {".m4a", ".mp3", ".aac", ".wav", ".ogg"}
+
+
+def _ffmpeg_probe(path: Path) -> str:
+    ffmpeg = ffmpeg_path()
+    if not ffmpeg or not path.exists():
+        return ""
+    result = subprocess.run(
+        [ffmpeg, "-hide_banner", "-i", str(path)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return result.stderr or ""
+
+
+def _ffmpeg_ok(cmd: list[str]) -> bool:
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+def _replace_file(src: Path, tmp: Path) -> Path:
+    if not tmp.exists() or tmp.stat().st_size <= 0:
+        tmp.unlink(missing_ok=True)
+        return src
+    tmp.replace(src)
+    return src
+
+
+def _dash_prefix(path: Path) -> str:
+    name = path.name
+    marker = ".fdash-"
+    if marker in name:
+        return name.split(marker, 1)[0]
+    return path.stem
+
+
+def _find_dash_pair(path: Path) -> Path | None:
+    suffix = path.suffix.lower()
+    prefix = _dash_prefix(path)
+    if suffix in VIDEO_EXTS:
+        for item in path.parent.glob(f"{prefix}.fdash-*a.m4a"):
+            if item.exists() and item != path:
+                return item
+        sibling = path.with_suffix(".m4a")
+        if sibling.exists() and sibling != path:
+            return sibling
+    if suffix in AUDIO_EXTS:
+        for item in path.parent.glob(f"{prefix}.fdash-*v.mp4"):
+            if item.exists() and item != path:
+                return item
+        sibling = path.with_suffix(".mp4")
+        if sibling.exists() and sibling != path:
+            return sibling
+    return None
+
+
+def _merge_av(video: Path, audio: Path) -> Path | None:
+    ffmpeg = ffmpeg_path()
+    if not ffmpeg:
+        return None
+    probe = _ffmpeg_probe(video)
+    vp9 = "vp9" in probe.lower() or "vp09" in probe.lower()
+    out = video.with_suffix(".mp4")
+    tmp = out.with_name(f".{out.stem}.fix.mp4")
+    tmp.unlink(missing_ok=True)
+    if vp9:
+        cmd = [
+            ffmpeg, "-y", "-i", str(video), "-i", str(audio),
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-movflags", "+faststart", str(tmp),
+        ]
+    else:
+        cmd = [
+            ffmpeg, "-y", "-i", str(video), "-i", str(audio),
+            "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart", str(tmp),
+        ]
+        if not _ffmpeg_ok(cmd) or not tmp.exists() or tmp.stat().st_size <= 0:
+            tmp.unlink(missing_ok=True)
+            cmd = [
+                ffmpeg, "-y", "-i", str(video), "-i", str(audio),
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-movflags", "+faststart", str(tmp),
+            ]
+        else:
+            _replace_file(out, tmp)
+            if video != out:
+                video.unlink(missing_ok=True)
+            if audio != out:
+                audio.unlink(missing_ok=True)
+            return out
+    if not _ffmpeg_ok(cmd):
+        tmp.unlink(missing_ok=True)
+        return None
+    _replace_file(out, tmp)
+    if video != out:
+        video.unlink(missing_ok=True)
+    if audio != out:
+        audio.unlink(missing_ok=True)
+    return out if out.exists() else None
+
+
+def _remux_media(path: Path) -> Path:
+    ffmpeg = ffmpeg_path()
+    if not ffmpeg or not path.exists():
+        return path
+    probe = _ffmpeg_probe(path)
+    if not probe:
+        return path
+    low = probe.lower()
+    has_video = "video:" in low
+    has_audio = "audio:" in low
+    dash = "dash" in low or "fdash" in path.name.lower()
+    vp9 = "vp9" in low or "vp09" in low
+    suffix = path.suffix.lower()
+    if suffix in VIDEO_EXTS and (vp9 or dash):
+        tmp = path.with_name(f".{path.stem}.fix.mp4")
+        tmp.unlink(missing_ok=True)
+        out = path.with_suffix(".mp4")
+        if vp9:
+            cmd = [ffmpeg, "-y", "-i", str(path), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p"]
+            cmd += ["-c:a", "aac"] if has_audio else ["-an"]
+            cmd += ["-movflags", "+faststart", str(tmp)]
+        else:
+            cmd = [ffmpeg, "-y", "-i", str(path), "-c", "copy", "-movflags", "+faststart", str(tmp)]
+        if _ffmpeg_ok(cmd) and tmp.exists() and tmp.stat().st_size > 0:
+            if path != out:
+                path.unlink(missing_ok=True)
+            return _replace_file(out, tmp)
+        tmp.unlink(missing_ok=True)
+        return path
+    if suffix in AUDIO_EXTS and (dash or "audio:" in low) and not has_video:
+        tmp = path.with_name(f".{path.stem}.fix.m4a")
+        tmp.unlink(missing_ok=True)
+        out = path.with_suffix(".m4a")
+        cmd = [ffmpeg, "-y", "-i", str(path), "-c:a", "copy", "-movflags", "+faststart", str(tmp)]
+        if not _ffmpeg_ok(cmd) or not tmp.exists() or tmp.stat().st_size <= 0:
+            tmp.unlink(missing_ok=True)
+            cmd = [ffmpeg, "-y", "-i", str(path), "-c:a", "aac", "-movflags", "+faststart", str(tmp)]
+        if _ffmpeg_ok(cmd) and tmp.exists() and tmp.stat().st_size > 0:
+            if path != out:
+                path.unlink(missing_ok=True)
+            return _replace_file(out, tmp)
+        tmp.unlink(missing_ok=True)
+    return path
+
+
+def _finalize_ig_media(path: Path) -> Path | None:
+    if not path.exists():
+        return None
+    pair = _find_dash_pair(path)
+    if pair:
+        video, audio = (path, pair) if path.suffix.lower() in VIDEO_EXTS else (pair, path)
+        merged = _merge_av(video, audio)
+        if merged and merged.exists():
+            return merged
+    repaired = _remux_media(path)
+    return repaired if repaired.exists() else path
+
+
+def _configure_instagram(dest: Path) -> None:
+    config.clear()
+    config.set((), "base-directory", str(dest))
+    config.set(("extractor", "instagram"), "cookies", str(cookies_path()))
+    config.set(("extractor", "instagram"), "videos", "merged")
+    config.set(("extractor", "instagram"), "previews", False)
+    config.set(("extractor", "instagram"), "order-files", "asc")
+    config.set(("extractor", "instagram"), "warn-videos", False)
+    config.set(("downloader",), "retries", 4)
+    config.set(("downloader",), "timeout", 30.0)
+    config.set(("downloader", "ytdl"), "enabled", True)
+    config.set(("downloader", "ytdl"), "module", "yt_dlp")
+    ffmpeg = ffmpeg_path()
+    if ffmpeg:
+        config.set(
+            ("downloader", "ytdl"),
+            "raw-options",
+            {
+                "ffmpeg_location": ffmpeg,
+                "merge_output_format": "mp4",
+                "format": "bv*+ba/b",
+            },
+        )
+    config.set(("output",), "mode", "null")
 
 
 def _friendly_ig_error(raw: str) -> str:
@@ -118,6 +308,7 @@ def _new_ig_state(start: int, limit: int, skip: int, dest: Path, on_event: Event
         "posts_taken": 0,
         "last_post_key": "",
         "skipping_post": "",
+        "cancel": None,
     }
 
 
@@ -148,6 +339,9 @@ class IgProgressJob(job.DownloadJob):
 
     def handle_url(self, url, kwdict):
         state = self.ig_state
+        cancel = state.get("cancel")
+        if cancel is not None and cancel.is_set():
+            raise gdl_exception.StopExtraction(2)
         key = _post_key(kwdict) or f"file:{url}"
 
         # Remaining slides of a skipped carousel/post.
@@ -214,6 +408,14 @@ class IgProgressJob(job.DownloadJob):
             self._emit({"type": "error", "message": f"Gagal unduh {path.name}"})
             return
         path = self._number_file(path, kwdict)
+        original = path
+        path = _finalize_ig_media(path) or path
+        if original.exists() and original != path:
+            rel_old = _safe_rel(original, state["dest"])
+            if rel_old in state["saved"] and not original.exists():
+                state["saved"].remove(rel_old)
+        if not path.exists():
+            return
         rel = _safe_rel(path, state["dest"])
         if rel in state["saved"]:
             return
@@ -236,14 +438,17 @@ class IgProgressJob(job.DownloadJob):
             "posts_limit": state["limit"],
             "files": len(state["saved"]),
         }
-        # Video list preview must use Instagram cover/rthumb, never the .mp4 itself.
-        if path.suffix.lower() in {".mp4", ".mov", ".m4v", ".webm"}:
-            thumb = str(kwdict.get("display_url") or "").strip()
-            if thumb.startswith("http"):
-                event["thumb"] = thumb
+        if path.suffix.lower() in VIDEO_EXTS:
             event["kind"] = "video"
+            cover = str(kwdict.get("display_url") or "").strip()
+            thumb = _video_thumb_path(path)
+            if cover.startswith("http"):
+                _http_save(cover, thumb)
+        elif path.suffix.lower() in AUDIO_EXTS:
+            event["kind"] = "audio"
         else:
             event["kind"] = "image"
+        event["dest"] = str(state["dest"])
         self._emit(event)
 
     def _number_file(self, path: Path, kwdict: dict) -> Path:
@@ -284,6 +489,7 @@ def download_instagram(
     limit=None,
     start=None,
     end=None,
+    cancel: threading.Event | None = None,
 ) -> dict:
     cleaned = url.strip()
     if not is_instagram_url(cleaned):
@@ -337,16 +543,9 @@ def download_instagram(
             )
             if not gdl_extractor.find(source):
                 raise ValueError("URL Instagram tidak dikenali")
-            config.clear()
-            config.set((), "base-directory", str(dest_path))
-            config.set(("extractor", "instagram"), "cookies", str(cookies_path()))
-            config.set(("extractor", "instagram"), "videos", True)
-            config.set(("extractor", "instagram"), "previews", False)
-            config.set(("extractor", "instagram"), "order-files", "asc")
-            config.set(("downloader",), "retries", 4)
-            config.set(("downloader",), "timeout", 30.0)
-            config.set(("output",), "mode", "null")
+            _configure_instagram(dest_path)
             state = _new_ig_state(range_start, max_posts, skip, dest_path, on_event)
+            state["cancel"] = cancel
             job_run = IgProgressJob(source)
             job_run.ig_state = state
             try:
@@ -379,7 +578,10 @@ def download_instagram(
     state = job_run.ig_state
     saved = state["saved"]
     failed = state["failed"]
+    stopped = bool(cancel is not None and cancel.is_set())
     if not saved:
+        if stopped:
+            raise ValueError("Unduhan dihentikan.")
         if errors:
             message = _friendly_ig_error(errors[-1])
             if message == SESSION_DEAD:
@@ -389,7 +591,7 @@ def download_instagram(
 
     result = {
         "type": "done",
-        "ok": True,
+        "ok": not stopped,
         "count": len(saved),
         "posts": state["posts_taken"],
         "failed": failed,
@@ -401,6 +603,7 @@ def download_instagram(
         "label": label,
         "skipped": state["skipped"],
         "source": "instagram",
+        "stopped": stopped,
     }
     on_event(result)
     return result

@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pinterest Download by GEMADIPADA</title>
     <link rel="icon" type="image/png" href="/static/logo.png" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css?v=ig-info1" />
+    <link rel="stylesheet" href="/static/styles.css?v=ig-page2" />
   </head>
   <body data-platform="pinterest">
     <div class="glow glow-a" aria-hidden="true"></div>
@@ -35,7 +35,7 @@
       <header class="hero">
         <img class="brand-logo" src="/static/logo.png" alt="Pinterest Download by GEMADIPADA" />
         <p class="eyebrow">Download by GEMADIPADA</p>
-        <p class="version-badge">v<span id="app-version">1.0.6</span></p>
+        <p class="version-badge">v<span id="app-version">1.0.7</span></p>
         <h1 id="hero-title">Tempel URL, unduh semua image dan video</h1>
         <p class="lede" id="hero-lede">
           Pin, board, atau profil. Profil: folder per board, rentang berlaku di tiap folder. Tulis manual jika lebih dari 1000.
@@ -99,13 +99,17 @@
               <label><input type="radio" name="start" value="401" /> 401–500</label>
               <div class="limit-manual">
                 <label><input type="radio" name="start" value="custom" /> Manual</label>
-                <div class="range-manual" id="range-manual" hidden role="group" aria-label="Rentang manual">
-                  <label for="range-from">Dari</label>
-                  <input id="range-from" name="range-from" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="1001" />
-                  <span class="range-sep" aria-hidden="true">–</span>
-                  <label for="range-to">Sampai</label>
-                  <input id="range-to" name="range-to" type="number" min="1" max="102000" step="1" inputmode="numeric" placeholder="2000" />
-                </div>
+              </div>
+            </div>
+            <div class="range-manual" id="range-manual" hidden role="group" aria-label="Rentang manual">
+              <div class="range-field">
+                <label for="range-from">Dari</label>
+                <input id="range-from" name="range-from" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="1001" />
+              </div>
+              <span class="range-sep" aria-hidden="true">–</span>
+              <div class="range-field">
+                <label for="range-to">Sampai</label>
+                <input id="range-to" name="range-to" type="number" min="1" max="102000" step="1" inputmode="numeric" placeholder="2000" />
               </div>
             </div>
           </fieldset>
@@ -209,27 +213,54 @@
 
           <div class="url-block">
             <label for="ig-url">URL Instagram</label>
-            <div class="field">
-              <span class="field-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l1.07-1.07a5 5 0 0 0-7.07-7.07L10.4 6.54" />
-                  <path d="M14 11a5 5 0 0 0-7.54-.54L5.4 11.54a5 5 0 0 0 7.07 7.07l1.13-1.13" />
-                </svg>
-              </span>
-              <input
-                id="ig-url"
-                name="ig-url"
-                type="url"
-                inputmode="url"
-                autocomplete="url"
-                placeholder="https://www.instagram.com/username/"
-                required
-              />
+            <div class="url-queue">
+              <div class="url-row">
+                <div class="field">
+                  <span class="field-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l1.07-1.07a5 5 0 0 0-7.07-7.07L10.4 6.54" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54L5.4 11.54a5 5 0 0 0 7.07 7.07l1.13-1.13" />
+                    </svg>
+                  </span>
+                  <input
+                    id="ig-url"
+                    name="ig-url"
+                    type="url"
+                    inputmode="url"
+                    autocomplete="url"
+                    placeholder="https://www.instagram.com/username/"
+                  />
+                </div>
+                <button id="ig-queue-btn" type="button" class="ghost" aria-expanded="false" aria-controls="ig-queue-pop">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M8 6h13" />
+                    <path d="M8 12h13" />
+                    <path d="M8 18h13" />
+                    <path d="M3 6h.01" />
+                    <path d="M3 12h.01" />
+                    <path d="M3 18h.01" />
+                  </svg>
+                  <span>Antrian</span>
+                  <span id="ig-queue-count" class="queue-count" hidden>0</span>
+                </button>
+              </div>
+              <div id="ig-queue-pop" class="queue-popover" hidden>
+                <p class="queue-head">Antrian URL</p>
+                <textarea
+                  id="ig-queue-text"
+                  class="queue-text"
+                  rows="16"
+                  spellcheck="false"
+                  wrap="soft"
+                  placeholder="https://www.instagram.com/username/&#10;https://www.instagram.com/akun-lain/"
+                ></textarea>
+                <p id="ig-queue-note" class="hint">Tempel banyak URL. Enter bikin baris baru. Unduh jalan satu per satu.</p>
+              </div>
             </div>
             <p class="hint">Profil, /posts, /reels, post, atau reel. Carousel: semua slide ikut. Login wajib. Akun privat: akun session harus sudah follow.</p>
           </div>
 
-          <label for="ig-dest">Folder unduhan</label>
+          <label for="ig-dest" id="ig-dest-label">Folder unduhan</label>
           <div class="folder-row">
             <input id="ig-dest" name="ig-dest" type="text" spellcheck="false" />
             <button id="ig-pick-folder" type="button" class="ghost">
@@ -251,13 +282,17 @@
               <label><input type="radio" name="ig-start" value="401" /> 401–500</label>
               <div class="limit-manual">
                 <label><input type="radio" name="ig-start" value="custom" /> Manual</label>
-                <div class="range-manual" id="ig-range-manual" hidden role="group" aria-label="Rentang manual">
-                  <label for="ig-range-from">Dari</label>
-                  <input id="ig-range-from" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="1001" />
-                  <span class="range-sep" aria-hidden="true">–</span>
-                  <label for="ig-range-to">Sampai</label>
-                  <input id="ig-range-to" type="number" min="1" max="102000" step="1" inputmode="numeric" placeholder="2000" />
-                </div>
+              </div>
+            </div>
+            <div class="range-manual" id="ig-range-manual" hidden role="group" aria-label="Rentang manual">
+              <div class="range-field">
+                <label for="ig-range-from">Dari</label>
+                <input id="ig-range-from" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="1001" />
+              </div>
+              <span class="range-sep" aria-hidden="true">–</span>
+              <div class="range-field">
+                <label for="ig-range-to">Sampai</label>
+                <input id="ig-range-to" type="number" min="1" max="102000" step="1" inputmode="numeric" placeholder="2000" />
               </div>
             </div>
           </fieldset>
@@ -271,6 +306,19 @@
                 <path d="M5 21h14" />
               </svg>
               <span>Unduh Instagram</span>
+            </button>
+            <button id="ig-stop" type="button" class="ghost ghost-stop" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+              <span>Stop</span>
+            </button>
+            <button id="ig-retry" type="button" class="ghost" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+              <span>Ulangi gagal</span>
             </button>
             <button id="ig-open-folder" type="button" class="ghost">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -289,7 +337,23 @@
           <div id="ig-progress" class="progress" hidden>
             <div id="ig-progress-bar"></div>
           </div>
+          <div id="ig-result-nav" class="result-nav" hidden>
+            <div id="ig-profile-tabs" class="tab-list result-tabs" role="tablist" aria-label="Profil hasil"></div>
+          </div>
           <ul id="ig-file-list" class="files"></ul>
+          <nav id="ig-file-pager" class="file-pager" hidden aria-label="Halaman file">
+            <button id="ig-page-prev" type="button" class="ghost" aria-label="Halaman sebelumnya">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+            <p id="ig-page-label">1 / 1</p>
+            <button id="ig-page-next" type="button" class="ghost" aria-label="Halaman berikutnya">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+          </nav>
         </section>
       </section>
 
@@ -305,6 +369,10 @@
           <button id="close-changelog" type="button" class="text-btn">Kembali</button>
           <h2>Changelog</h2>
           <ol class="changelog-list">
+            <li>
+              <p class="changelog-ver">1.0.7 <time datetime="2026-11-19">19 Nov 2026</time></p>
+              <p>Antrian Instagram: profil yang sedang diunduh, Stop, Ulangi gagal. Video DASH/VP9 digabung ke MP4 yang bisa diputar. Rentang manual jadi baris Dari–Sampai. Hasil dipisah per profil, 25 file per halaman.</p>
+            </li>
             <li>
               <p class="changelog-ver">1.0.6 <time datetime="2026-11-13">13 Nov 2026</time></p>
               <p>App baru tidak lagi menempel ke backend lama di port 8765, jadi versi/Instagram tidak tertukar setelah update.</p>
@@ -333,6 +401,6 @@
         </div>
       </section>
     </main>
-    <script src="/static/app.js?v=ig-info1" type="module"></script>
+    <script src="/static/app.js?v=ig-page2" type="module"></script>
   </body>
 </html>

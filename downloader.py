@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import subprocess
 import threading
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -1134,6 +1135,8 @@ def list_downloads(dest: str | None = None, limit: int = 120) -> list[dict]:
     for path in dest_path.rglob("*"):
         if not path.is_file() or path.name == ".gitkeep":
             continue
+        if path.name.endswith(".part") or ".previews" in path.parts:
+            continue
         files.append(
             {
                 "name": path.name,
@@ -1146,11 +1149,88 @@ def list_downloads(dest: str | None = None, limit: int = 120) -> list[dict]:
     return files[:limit]
 
 
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
+VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm"}
+AUDIO_EXTS = {".m4a", ".mp3", ".aac", ".wav", ".ogg"}
+
+
 def resolve_download(rel_path: str, dest: str | None = None) -> Path:
     dest_path = normalize_dest(dest or load_settings()["dest"])
-    target = (dest_path / rel_path).resolve()
-    if dest_path.resolve() not in target.parents and target != dest_path.resolve():
+    relative = Path(str(rel_path).lstrip("/"))
+    if relative.is_absolute() or ".." in relative.parts:
         raise ValueError("Path tidak valid")
-    if not target.is_file():
+    roots = [dest_path]
+    parent = dest_path.parent
+    if parent not in roots:
+        roots.append(parent)
+    for root in roots:
+        target = (root / relative).resolve()
+        try:
+            target.relative_to(root.resolve())
+        except ValueError:
+            continue
+        if target.is_file():
+            return target
+    raise FileNotFoundError(rel_path)
+
+
+def _video_thumb_path(video: Path) -> Path:
+    folder = video.parent / ".previews"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{video.stem}.jpg"
+
+
+def make_video_thumb(video: Path) -> Path | None:
+    if not video.is_file():
+        return None
+    thumb = _video_thumb_path(video)
+    if thumb.exists() and thumb.stat().st_size > 0:
+        return thumb
+    ffmpeg = ffmpeg_path()
+    if not ffmpeg:
+        return None
+    tmp = thumb.with_name(thumb.stem + ".tmp.jpg")
+    try:
+        result = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-ss",
+                "0.3",
+                "-i",
+                str(video),
+                "-frames:v",
+                "1",
+                "-q:v",
+                "5",
+                "-update",
+                "1",
+                str(tmp),
+            ],
+            capture_output=True,
+            timeout=25,
+            check=False,
+        )
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        return None
+    if result.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
+        tmp.replace(thumb)
+        return thumb
+    tmp.unlink(missing_ok=True)
+    return None
+
+
+def preview_download(rel_path: str, dest: str | None = None) -> Path:
+    path = resolve_download(rel_path, dest)
+    ext = path.suffix.lower()
+    if ext in VIDEO_EXTS:
+        thumb = make_video_thumb(path)
+        if not thumb:
+            raise FileNotFoundError(rel_path)
+        return thumb
+    if ext in AUDIO_EXTS:
         raise FileNotFoundError(rel_path)
-    return target
+    if ext not in IMAGE_EXTS and not path.is_file():
+        raise FileNotFoundError(rel_path)
+    return path
