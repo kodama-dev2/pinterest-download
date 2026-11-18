@@ -39,6 +39,23 @@ STATIC = ROOT / "static"
 app = FastAPI(title="Pinterest Download by GEMADIPADA")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
+NO_STORE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
+@app.middleware("http")
+async def disable_ui_cache(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.startswith("/static/"):
+        response.headers["Cache-Control"] = NO_STORE["Cache-Control"]
+        response.headers["Pragma"] = NO_STORE["Pragma"]
+        response.headers["Expires"] = NO_STORE["Expires"]
+    return response
+
 
 class DownloadRequest(BaseModel):
     url: str = Field(min_length=8, max_length=2000)
@@ -72,7 +89,7 @@ class InstagramSessionRequest(BaseModel):
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(STATIC / "index.html", headers=NO_STORE)
 
 
 @app.get("/api/settings")

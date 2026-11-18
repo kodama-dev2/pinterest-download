@@ -445,7 +445,12 @@ async function ensureBackend(onStatus = () => {}) {
   }
 }
 
-function createWindow() {
+async function createWindow() {
+  try {
+    await session.defaultSession.clearCache();
+  } catch {
+    // cache lama tidak boleh menahan UI versi baru
+  }
   const win = new BrowserWindow({
     width: 880,
     height: 900,
@@ -469,7 +474,8 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  win.loadURL(`http://${HOST}:${PORT}/`);
+  const version = encodeURIComponent(app.getVersion());
+  win.loadURL(`http://${HOST}:${PORT}/?v=${version}`);
 }
 
 ipcMain.handle("pick-folder", async (event) => {
@@ -617,7 +623,7 @@ app.whenReady().then(async () => {
       boot.loadURL(bootHtml(text));
     });
     if (boot && !boot.isDestroyed()) boot.close();
-    createWindow();
+    await createWindow();
   } catch (error) {
     if (boot && !boot.isDestroyed()) boot.close();
     const win = new BrowserWindow({
@@ -632,7 +638,7 @@ app.whenReady().then(async () => {
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       await ensureBackend();
-      createWindow();
+      await createWindow();
     }
   });
 });

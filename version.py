@@ -15,10 +15,10 @@ def app_version() -> str:
     pkg = ROOT / "package.json"
     if pkg.exists():
         try:
-            return str(json.loads(pkg.read_text()).get("version") or "1.0.8")
+            return str(json.loads(pkg.read_text()).get("version") or "1.0.9")
         except Exception:
             pass
-    return "1.0.8"
+    return "1.0.9"
 
 
 def _parse(raw: str) -> tuple[int, ...]:
